@@ -161,7 +161,8 @@ public sealed class ClientSession
 
     void CheckStillRunning()
     {
-        if (Current == this && _netService != null && !_netService.IsConnected) Stop();
+        // See HostSession.CheckStillRunning: the run's cleanup writes after the disconnect.
+        if (Current == this && _netService != null && !_netService.IsConnected && !RunManager.Instance.IsInProgress) Stop();
     }
 
     public void Stop()

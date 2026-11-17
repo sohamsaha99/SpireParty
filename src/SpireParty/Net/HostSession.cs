@@ -213,7 +213,9 @@ public sealed class HostSession
 
     void CheckStillRunning()
     {
-        if (Current == this && !NetService.IsConnected) Stop();
+        // Wait for the run to be cleaned up too: RunManager.CleanUp still writes (the final combat
+        // replay) after the disconnect, and that write must stay inside the session.
+        if (Current == this && !NetService.IsConnected && !RunManager.Instance.IsInProgress) Stop();
     }
 
     public void Stop()
