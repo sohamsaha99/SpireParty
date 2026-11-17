@@ -58,6 +58,23 @@ public sealed class MachineConfig
         if (RecentHosts.Count > MaxRecentHosts) RecentHosts.RemoveRange(MaxRecentHosts, RecentHosts.Count - MaxRecentHosts);
     }
 
+    public const string FileName = "config.json";
+
+    public static MachineConfig Load(string spirePartyDataDir, out List<string> warnings)
+    {
+        string path = System.IO.Path.Combine(spirePartyDataDir, FileName);
+        string? json = System.IO.File.Exists(path) ? System.IO.File.ReadAllText(path) : null;
+        return Parse(json, out warnings);
+    }
+
+    public void Save(string spirePartyDataDir)
+    {
+        System.IO.Directory.CreateDirectory(spirePartyDataDir);
+        string path = System.IO.Path.Combine(spirePartyDataDir, FileName);
+        System.IO.File.WriteAllText(path + ".tmp", ToJson());
+        System.IO.File.Move(path + ".tmp", path, overwrite: true);
+    }
+
     public string ToJson()
     {
         var o = new JsonObject

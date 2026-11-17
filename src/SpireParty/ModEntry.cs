@@ -29,7 +29,14 @@ public static class ModEntry
     public static AdapterReport? Adapters { get; private set; }
 
     /// <summary>Every patch site. Each milestone adds its adapters here.</summary>
-    static IEnumerable<GameAdapter> AllAdapters() => Array.Empty<GameAdapter>();
+    static IEnumerable<GameAdapter> AllAdapters() => new GameAdapter[]
+    {
+        new MultiplayerMenuAdapter(),
+        new RunSaveAdapter(),
+        new ProfileGuardAdapter(),
+        new PeerBindingAdapter(),
+        new DevLaunchAdapter(),
+    };
 
     public static void Init()
     {
@@ -49,6 +56,7 @@ public static class ModEntry
                 Log.Warn($"{LogTag} adapter {name} not applied: {reason}");
             if (Adapters.DisabledMessage() is { } message)
                 Log.Warn($"{LogTag} {message}");
+            UI.MainThread.Ensure();
         }
         catch (Exception e)
         {

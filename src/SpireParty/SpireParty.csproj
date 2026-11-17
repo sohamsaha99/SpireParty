@@ -29,6 +29,11 @@
       <HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Compile-time only: some game signatures mention Steamworks types. -->
+    <Reference Include="Steamworks.NET">
+      <HintPath>$(Sts2DataDir)/Steamworks.NET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
