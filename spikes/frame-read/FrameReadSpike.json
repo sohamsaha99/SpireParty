@@ -1,0 +1,11 @@
+{
+  "id": "FrameReadSpike",
+  "name": "FrameReadSpike",
+  "version": "0.0.1",
+  "author": "SpireParty",
+  "description": "M0 throwaway: measures viewport read + JPEG encode cost. Does nothing unless started with --frameread.",
+  "dependencies": [],
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": false
+}

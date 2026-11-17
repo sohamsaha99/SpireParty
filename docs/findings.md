@@ -354,3 +354,41 @@ A 2-player save was made with `spikes/two-player.ps1`: host ID 1 and client ID 1
 - **Minimum two active seats.** A party cannot resume a run with one active seat, so SpireParty either refuses a bench that leaves one active seat, or patches `LoadRunLobby.IsAboutToBeginGame` for party runs. **User decision needed.** The simplest choice is to refuse, since a solo player can play single-player.
 - **Backfill is required and sufficient for loading.** Still unverified: the run-end paths that walk every floor (`NGameOverScreen` gold total, `ProgressSaveManager`, `MetricUtilities`, run-history screen) after a real mid-run add. Verify by finishing a run in M2.
 - **Benched players' history stays in the save.** The game tolerated it here (load, play, save). `ScoreUtility` divides by the current player count, so the score may skew slightly; that is cosmetic.
+
+---
+
+# Frame-read spike (M0 task 0.4, v0.113.1, Windows VM with GPU passthrough, 2026-11-17)
+
+**Result: reading the game's own viewport and JPEG-encoding it every frame at 1280x720 is cheap enough.** The game kept a steady 60 fps while capturing every frame.
+
+## Method
+
+A throwaway mod (`spikes/frame-read/`, armed only with `--frameread`, removed from `mods/` afterwards) hooked `RenderingServer.FramePostDraw`. No custom Godot node was needed; a C# event on an engine signal works from a mod.
+
+- The window was set to 1280x720 windowed with `DisplayServer.WindowSetSize`.
+- It recorded 10 s of baseline, then 30 s capturing every frame: `SceneTree.Root.GetTexture().GetImage()`, then `Image.SaveJpgToBuffer(0.70f)`.
+- Process CPU was sampled from outside the game.
+- The scene was a menu screen with light animation; busy combat scenes will give larger JPEGs.
+
+## Results
+
+| Measure | Baseline | Capturing every frame |
+| --- | --- | --- |
+| Frame rate | 60.0 fps (p95 frame 17.2 ms) | 60.0 fps (p95 17.1 ms, one 52 ms spike) |
+| Process CPU | 22% of one core | 48% of one core |
+| `GetImage` (viewport → CPU) | | mean 7.6 ms, p50 4.8, p95 12.3, max 23.8 |
+| `SaveJpgToBuffer` q=0.70 | | mean 3.5 ms, p50 3.5, p95 3.7 |
+| JPEG size | | mean 55 KB, max 66 KB (image is `Rgb8`, 1280x720) |
+
+## Interpretation
+
+- **CPU cost.** Capturing every frame added about 26% of one core, roughly 4.3 ms of CPU per frame. The rest of the measured `GetImage` time is waiting on the GPU, not CPU work.
+- **At the design's seat-video default** (at most 15 fps, only when the frame changed), expect about **+6–7% of one core per seat**. For 9 seats that is well under one core of capture cost on top of each seat's own rendering. The open M4 question is GPU and RAM for 9 rendering seats (about 570 MB each), not the capture.
+- **Bandwidth is the real limit for the JPEG MVP.**
+  - At 55 KB × 15 fps ≈ 0.8 MB/s ≈ **6.6 Mbit/s per seat** while the picture changes, so about **60 Mbit/s for 9 seats**. That exceeds many home upload links.
+  - Sending only changed frames helps a lot on quiet screens.
+  - Otherwise lower the JPEG quality or frame rate, or move to the WebRTC step as the design already plans.
+- **The capture stalls the main thread** (`GetImage` waits on the GPU, up to 24 ms worst case). If seats show hitches in M4:
+  - encode on a worker thread;
+  - use asynchronous GPU readback (Godot 4.4+ `RenderingDevice.TextureGetDataAsync`; check it exists in MegaDot's C# API before relying on it);
+  - capture at most every 4th frame. A seat runs at 30 fps and captures at 15.

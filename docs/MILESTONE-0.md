@@ -58,7 +58,7 @@ Also record:
 
 - [x] **Save surgery.** Done 2026-11-16 on the VM with two processes: see `docs/findings.md` → Save-surgery spike. Create a 2-player co-op save. On the Windows VM: two game processes (if the second-process spike below works), with a direct-connect mod (e.g. DirectConnectIP) temporarily installed, different player IDs, connected over 127.0.0.1; play one floor, then uninstall it. If two processes on the VM cannot make the save, move this prototype to 0.5 and use both machines. Copy the save into a scratch folder. Prove that SpireParty code can load it with the game's own serializer, remove one player, add them back, write it, and that the game loads the result. Never do this on the real profile save; work on copies.
 - [x] **Second process.** On the Windows VM, launch a second game process with a separate user data dir and see whether it starts, what Steam does, and what the log says. Done 2026-11-16: works, see `docs/findings.md` → Second-process spike.
-- [ ] **Frame read.** In a running game, read the viewport image and encode a JPEG every frame for 30 seconds; record CPU time per frame at 1280x720.
+- [x] **Frame read.** Done 2026-11-17: see `docs/findings.md` → Frame-read spike. In a running game, read the viewport image and encode a JPEG every frame for 30 seconds; record CPU time per frame at 1280x720.
 
 Do the second-process spike first: the save-surgery prototype and the M1 Windows gate both depend on it.
 
