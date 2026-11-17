@@ -14,6 +14,14 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <!-- Game assemblies copied into the TEST output only, so types that mention Harmony or game
+       types in their signatures can load. Tests must not call into the engine. -->
+  <ItemGroup>
+    <Reference Include="sts2"><HintPath>$(Sts2DataDir)/sts2.dll</HintPath></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2DataDir)/GodotSharp.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2DataDir)/0Harmony.dll</HintPath></Reference>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../src/SpireParty/SpireParty.csproj" />
     <None Include="../../src/SpireParty/SpireParty.json" Link="SpireParty.json" CopyToOutputDirectory="PreserveNewest" />
