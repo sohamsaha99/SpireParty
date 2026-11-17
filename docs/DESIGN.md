@@ -406,7 +406,7 @@ Build in six milestones, starting with a research spike on the riskiest unknown,
 | Milestone | Work | Gate to move on |
 | --- | --- | --- |
 | M0 · Research spike | Decompile `sts2.dll`; answer the open questions; prototype bench and remove on a copied save | Windows: each open question answered or worked around. Linux items deferred to the Fedora checkpoint |
-| M1 · Direct connect and seat IDs | ENet host and join menus, handshake, tokens; seat IDs replace Steam IDs in saves | Windows: Act 1 with two game processes on the VM over 127.0.0.1 |
+| M1 · Direct connect and seat IDs | ENet host and join menus, TCP control channel for the handshake, tokens and heartbeat; seat IDs replace Steam IDs in saves; party run save redirected to the party folder and profile writes skipped (pulled forward from M2 for hard rule 1). Plan: `docs/MILESTONE-1.md` | Windows: Act 1 with two game processes on the VM over 127.0.0.1 |
 | Fedora checkpoint | Linux load check; deploy script on Linux; ENet over Tailscale; any M0 prototype that needed two machines | Act 1 over Tailscale with each OS as host |
 | M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add; roster check patched; fail-closed scan | Bench, restore and add survive a full act |
 | M3 · Ten players | Cap, layouts, turn timer, AFK tools; enemy health formula charted; multiplier | A 10-player act with no desync, combat readable |
