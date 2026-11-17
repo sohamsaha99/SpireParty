@@ -36,6 +36,7 @@ public static class ModEntry
         new ProfileGuardAdapter(),
         new PeerBindingAdapter(),
         new DevLaunchAdapter(),
+        new TutorialAdapter(),
     };
 
     public static void Init()
