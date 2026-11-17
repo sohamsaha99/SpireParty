@@ -21,7 +21,8 @@ SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 10 fri
 
 - .NET 9 SDK. The game bundles .NET runtime 9.0.x and a Godot 4.5 fork (MegaDot). Target `net9.0`.
 - Harmony: the game ships `0Harmony.dll`. Reference it; do not ship your own copy.
-- `ilspycmd` (`dotnet tool install -g ilspycmd`) to decompile `sts2.dll`.
+- `ilspycmd` (`dotnet tool install -g ilspycmd`) to decompile `sts2.dll`. With the .NET 9 SDK, pin `--version 9.1.0.7988` (newer releases need a newer SDK).
+- Tests: xUnit (approved by the user 2026-11-17) with `Microsoft.NET.Test.Sdk` and `xunit.runner.visualstudio`, in `tests/` only; never shipped in the mod. Run `dotnet test`.
 - Optional scaffold: `dotnet new install S2SModTemplate.Templates` then `dotnet new sts2mod`. Use it as reference for project wiring; the project layout below wins.
 
 ### Game paths
