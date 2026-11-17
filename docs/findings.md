@@ -417,3 +417,12 @@ Every patch is in `src/SpireParty/GameAdapters/` and does nothing unless a Spire
 - **New profiles show the mods prompt** (each `default/<id>` test profile, once). Accepting it quits the game.
 - **Names in the lobby.** Without Steam, the lobby shows the player ID (e.g. "7000002") for SpireParty seats. Seat display names in the lobby and in the run need a name patch (`PlatformUtil.GetPlayerName`); deferred.
 - **The control channel's "auto" address** found this VM's Tailscale address (100.86.205.88) and bound it plus 127.0.0.1.
+
+## M1 gate run 1: profile leak found and fixed (2026-11-17)
+
+The first gate run's hash compare showed `progress.save` written **during** the party session, in the host's Steam modded profile and in the client's test profile, and `replays/latest.mcr` written to both profiles.
+
+- **Cause 1: tutorial flags.** `ProgressSaveManager.MarkFtueAsComplete` ("Player has seen ftue …") calls `ProgressSaveManager.SaveProgress()` directly, not through `SaveManager.SaveProgressFile`. Five other callers do the same (`SetFtuesEnabled` and others). Each write saves the whole in-memory progress, so the mid-run write may also have carried small in-memory changes from the party run (the file grew by about 300 bytes). Fix: guard `ProgressSaveManager.SaveProgress()` itself, the single writer of `progress.save`.
+- **Cause 2: combat replay.** `RunManager.WriteReplay` writes `replays/latest.mcr` into the profile after each combat. Fix: redirect it to `<party>/replays/latest.mcr`. Note: `CombatReplayWriter.WriteReplay` splits the path on '/'.
+- **Impact.** Only the **modded** profile (`steam/<SteamID>/modded/profile1`) and test profiles changed. The vanilla profile was untouched. The changed modded `progress.save` cannot be restored, because its `.backup` was overwritten too.
+- **Status.** The fix is deployed and self-checks pass. It must be confirmed with another hash compare over a session that triggers a progress write.

@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Runs.Metrics;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Saves.Managers;
 using SpireParty.Core;
 using SpireParty.Platform;
 
@@ -32,7 +33,12 @@ public sealed class ProfileGuardAdapter : GameAdapter
     {
         (typeof(SaveManager), nameof(SaveManager.UpdateProgressWithRunData), new[] { typeof(SerializableRun), typeof(bool) }, nameof(UpdateWithRunDataPrefix)),
         (typeof(SaveManager), nameof(SaveManager.UpdateProgressAfterCombatWon), new[] { typeof(Player), typeof(CombatRoom) }, nameof(SkipPrefix)),
-        (typeof(SaveManager), nameof(SaveManager.SaveProgressFile), Type.EmptyTypes, nameof(SkipPrefix)),
+        // The single writer of progress.save: SaveManager.SaveProgressFile, tutorial (FTUE) flags,
+        // SetFtuesEnabled and the rest all end here. Patching only SaveProgressFile leaked FTUE
+        // writes during the M1 gate (2026-11-17).
+        (typeof(ProgressSaveManager), nameof(ProgressSaveManager.SaveProgress), Type.EmptyTypes, nameof(SkipPrefix)),
+        // Combat replays (replays/latest.mcr) go to the party folder instead of the profile.
+        (typeof(RunManager), nameof(RunManager.WriteReplay), new[] { typeof(bool) }, nameof(WriteReplayPrefix)),
         (typeof(SaveManager), nameof(SaveManager.SaveRunHistory), new[] { typeof(RunHistory) }, nameof(SaveRunHistoryPrefix)),
         (typeof(MetricUtilities), nameof(MetricUtilities.UploadRunMetrics), new[] { typeof(SerializableRun), typeof(bool), typeof(ulong) }, nameof(SkipPrefix)),
         (typeof(MetricUtilities), nameof(MetricUtilities.UploadSettingsMetric), Type.EmptyTypes, nameof(SkipPrefix)),
@@ -75,14 +81,33 @@ public sealed class ProfileGuardAdapter : GameAdapter
         return false;
     }
 
+    /// <summary>The party folder on the host; on a client, a folder of the same name under its own SpireParty data dir.</summary>
+    static string PartyDataDir(SessionContext session) =>
+        session.PartyDir ?? Path.Combine(PlatformInfo.SpirePartyDataDir, "parties", SeatRules.PartyFolderName(session.PartyName));
+
+    static bool WriteReplayPrefix(RunManager __instance, bool stopRecording)
+    {
+        if (SpirePartySession.Current is not { } session) return true;
+        try
+        {
+            // The game's writer splits the path on '/', so hand it forward slashes.
+            string path = Path.Combine(PartyDataDir(session), "replays", "latest.mcr")
+                .Replace(Path.DirectorySeparatorChar, '/');
+            __instance.CombatReplayWriter?.WriteReplay(path, stopRecording);
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"{ModEntry.LogTag} could not write the combat replay to the party folder: {e.Message}");
+        }
+        return false;
+    }
+
     static bool SaveRunHistoryPrefix(RunHistory history)
     {
         if (SpirePartySession.Current is not { } session) return true;
         try
         {
-            string dir = session.PartyDir != null
-                ? Path.Combine(session.PartyDir, "history")
-                : Path.Combine(PlatformInfo.SpirePartyDataDir, "parties", SeatRules.PartyFolderName(session.PartyName), "history");
+            string dir = Path.Combine(PartyDataDir(session), "history");
             PartyRunSave.WriteHistory(dir, history);
             Log.Info($"{ModEntry.LogTag} run history saved to the party folder ({dir})");
         }
