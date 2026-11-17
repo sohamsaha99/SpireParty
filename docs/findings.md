@@ -392,3 +392,28 @@ A throwaway mod (`spikes/frame-read/`, armed only with `--frameread`, removed fr
   - encode on a worker thread;
   - use asynchronous GPU readback (Godot 4.4+ `RenderingDevice.TextureGetDataAsync`; check it exists in MegaDot's C# API before relying on it);
   - capture at most every 4th frame. A seat runs at 30 fps and captures at 15.
+
+---
+
+# M1 patch sites and findings (v0.113.1, d09d48e5)
+
+## Patch sites
+
+Every patch is in `src/SpireParty/GameAdapters/` and does nothing unless a SpireParty session is active.
+
+| Adapter | Target | What it does |
+| --- | --- | --- |
+| MultiplayerMenu | `NMultiplayerSubmenu._Ready` (postfix) | Adds SpireParty Host and Join buttons: a fresh instance of the Host button's scene (`SceneFilePath`) with plain-text labels |
+| RunSave | `RunSaveManager.SaveRun(SerializableRun, bool)`, `LoadMultiplayerRunSave`, `DeleteCurrentMultiplayerRun`, `HasMultiplayerRunSave` getter (prefixes) | During a host session the co-op save is `parties/<party>/run.save` (atomic write, `.backup` kept), never through `CloudSaveStore` |
+| ProfileGuard | `SaveManager.UpdateProgressWithRunData` (returns `PostRunProgressUpdateResult.Unsuccessful`), `UpdateProgressAfterCombatWon`, `SaveProgressFile`, `SaveRunHistory` (redirected to `parties/<party>/history/`); `MetricUtilities.UploadRunMetrics(SerializableRun,bool,ulong)`, `UploadSettingsMetric`; `DailyRunUtility.UploadScore`; `StatsManager.IncrementArchitectDamage` | Skipped during a session, on host and clients. At session end, `SaveManager.InitProgressData()` reloads progress from disk, so in-memory changes from the party run are discarded |
+| PeerBinding | `NetHostGameService.OnPeerConnected`, `OnPacketReceived` (prefixes) | An ENet peer's net ID and IP must match a fresh control-channel grant (read through `ENetHost._connectedPeers`), otherwise `DisconnectClient(InvalidJoin)`. Message header sender ID must equal the transport peer ID (header: 1-byte type, then a ulong sender, read with the game's `PacketReader`) |
+| DevLaunch | `NMainMenu.CheckCommandLineArgs` (postfix) | `--spireparty-host=<party>` / `--spireparty-join=<addr>,<seat>[,<token>]` test switches |
+
+## Findings
+
+- **The game cannot rejoin a run in progress.** `JoinFlow.Begin` handles `RunSessionState.Running` by requesting a `ClientRejoinResponseMessage` (`RunManager.GetRejoinMessage`: `ToSave(null)` plus `NetFullCombatState.FromRun`), but nothing in the game consumes `JoinResult.rejoinResponse`: `NJoinFriendScreen` shows `RunInProgress` and disconnects. No code applies a `NetFullCombatState` on a client. Loading the save on the client would rebuild the current room and could diverge from the host. **M1 approach (the design's fallback):** a dropped player is reported to the host. The host chooses Save and Quit, reopens the party, and everyone rejoins the load lobby; the current room restarts. Live rejoin is deferred (needs its own spike).
+- **Telling the game about a drop.** `NetHostGameService.DisconnectClient` → `ENetHost.DisconnectClient` calls the handler's `OnPeerDisconnected`, so the game treats it as a normal disconnect. This works around the ignored ENet `Disconnect` event without patching `ENetHost.Update`.
+- **Disconnecting inside `OnPeerConnected` is safe.** `NetHostGameService.OnPeerDisconnected` tolerates a peer it never registered.
+- **New profiles show the mods prompt** (each `default/<id>` test profile, once). Accepting it quits the game.
+- **Names in the lobby.** Without Steam, the lobby shows the player ID (e.g. "7000002") for SpireParty seats. Seat display names in the lobby and in the run need a name patch (`PlatformUtil.GetPlayerName`); deferred.
+- **The control channel's "auto" address** found this VM's Tailscale address (100.86.205.88) and bound it plus 127.0.0.1.

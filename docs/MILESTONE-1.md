@@ -1,10 +1,10 @@
-# Milestone 1 — Direct connect and seat IDs
+﻿# Milestone 1 â€” Direct connect and seat IDs
 
 **Goal:** a host opens a SpireParty session from the game's menu, friends join by address with a seat ID and token over the game's ENet transport, and the run is keyed by SpireParty seat player IDs instead of Steam IDs. Party runs never write to the game's profile folders.
 
 **Windows gate:** Act 1 completed with two game processes on the Windows VM over 127.0.0.1: a host with Steam on, plus a client with `--force-steam off`. Every check in "Gate test" below passes.
 
-**Then the Fedora checkpoint** (`docs/MILESTONE-0.md` → 0.5, plus Act 1 over Tailscale with each OS as host). M2 waits for it.
+**Then the Fedora checkpoint** (`docs/MILESTONE-0.md` â†’ 0.5, plus Act 1 over Tailscale with each OS as host). M2 waits for it.
 
 **Out of scope for M1:** more than 4 players (M3), the roster editor, bench, restore, backups and catch-up (M2), the unlock setting (M2; the handshake carries the field from M1 on), timer and AFK tools (M3), browser seats and the web server (M4).
 
@@ -24,59 +24,89 @@
 
 ## Tasks
 
+Status 2026-11-17: 1.1–1.10 implemented (commits `e52e9ea`, `11a9ed3`, `b01608d` and the gate-prep commit). The gate test below is next.
+
 ### 1.1 Adapter framework and session state
-- [ ] `GameAdapters/` base: each adapter declares its targets, has `SelfCheck()` (types and methods exist via reflection) and `Apply(Harmony)`. `ModEntry` runs every self-check, applies only the adapters whose check passed, disables the features that depend on a failed one, and shows one readable in-game message listing them.
-- [ ] `Core/SpirePartySession`: the single flag and context (party, local seat, role) that all patches consult; cleared on return to the main menu.
-- [ ] Unit tests: adapter dependency handling ("feature X disabled because adapter Y failed") on fake adapters.
+- [x] `GameAdapters/` base with `SelfCheck()` and `Apply(Harmony)`; `AdapterRegistry` applies only adapters whose features can fully work and builds one readable message.
+- [x] `Core/SpirePartySession`: the single flag and context all patches consult; ended when the game's net service disconnects.
+- [x] Unit tests on fake adapters.
 
 ### 1.2 Settings and party store
-- [ ] `Core/Settings`: `config.json` (game port, listen address, recent hosts) and `party.json` (name, seats, next player ID, unlock setting placeholder). Forgiving parsing: defaults for every key, missing or empty file OK, unknown keys ignored (hard rule 9).
-- [ ] `Core/PartyStore`: list, create and open parties under `user://mods/SpireParty/parties/<name>/`, folder names lower-case and sanitized; paths only through `Platform/`.
-- [ ] Unit tests: parsing (missing, empty, partial, unknown keys, bad values), party name sanitizing.
+- [x] Forgiving `config.json` and `party.json` (all design defaults); `PartyStore` with atomic writes.
+- [x] Unit tests.
 
 ### 1.3 Seats and tokens
-- [ ] `Core/Seats`: seat ID rules (short, lower-case, unique), player ID assignment (host 1; others from 7000002, never reused), word-style tokens (`amber-otter-41`), stored as salted SHA-256 hashes, constant-time compare, failed attempts rate-limited per address.
-- [ ] Unit tests: ID assignment and no reuse, token generate, hash and verify, rate limiting.
+- [x] Seat ID rules, player IDs (host 1; others from 7000002, never reused), word tokens, salted SHA-256, constant-time verify, per-address rate limit.
+- [x] Unit tests.
 
 ### 1.4 Control channel and handshake
-- [ ] `Net/ControlChannel`: TCP server on the host (listen address from config) and client; length-prefixed JSON messages with a size cap; plain sockets, no HttpListener.
-- [ ] Messages: `hello` (SpireParty version, game version and commit, seat ID, token), `welcome` (player ID, a token if the seat is new, unlock-setting placeholder), `refuse` (code plus readable reason, e.g. "host runs SpireParty 0.4.1, you run 0.4.0"), and `heartbeat`.
-- [ ] Host decision logic as a pure function (version, build, seat, token, lobby-open state → welcome or refuse), unit-tested for every refusal reason.
+- [x] TCP control channel (length-prefixed JSON, 16 KB cap, plain sockets), `hello` / `welcome` / `refuse` / `heartbeat` / `bye`.
+- [x] Pure host decision, unit-tested for every refusal; loopback integration tests.
 
 ### 1.5 Host flow
-- [ ] Multiplayer menu entry **SpireParty Host** (Harmony postfix on the multiplayer submenu): pick or create a party, then start the control channel and `StartENetHost(port, 4)`, forced even when Steam is up, and open the game's own lobby. A new run goes to the character select; an existing party save goes to the load lobby, canonicalized with host ID 1.
-- [ ] A new seat's token is shown once to the host, to pass on to the friend.
+- [x] **SpireParty Host** in the multiplayer submenu: pick or create a party, control channel plus `StartENetHost(port, 4)` forced even with Steam up, the game's own lobby (character select, or load lobby for a saved party run).
+- [x] Changed from the plan: a new seat's token is shown once **to the joining player** (the seat's owner, as the design says), not to the host.
 
 ### 1.6 Join flow
-- [ ] Multiplayer menu entry **SpireParty Join**: host address, seat ID, token (empty for a new seat); remembers recent hosts and seat IDs in `config.json` (tokens are not stored in plain text there).
-- [ ] Sends `hello`; on `welcome`, joins through the game's `JoinFlow` with `ENetClientConnectionInitializer(playerId, address, port)`; on `refuse`, shows the reason. A newly issued token is shown once to the player.
+- [x] **SpireParty Join**: address (optionally `:port`), seat ID, token; recent hosts remembered (no tokens stored); readable refusals; new token shown once.
 
 ### 1.7 Peer binding
-- [ ] Host: ENet peers must match a fresh `welcome` (same IP and net ID within a short window), otherwise they are disconnected. Game packets whose header sender ID differs from the transport peer are dropped and logged.
+- [x] ENet peers must match a fresh seat claim from the same IP; header sender ID must match the peer.
 
 ### 1.8 Party save redirect and profile guard
-- [ ] Redirect the co-op run save (`RunSaveManager` path, load and delete) to the party folder during a session, bypassing `CloudSaveStore`.
-- [ ] Skip progress, stats, achievements, metrics and leaderboard writes during a session; send run history to `parties/<party>/history/`. List each patch site in `docs/findings.md`.
-- [ ] `tools/hash-profile.ps1` and `tools/hash-profile.sh`: hash every file under the game's `steam/<SteamID>/` tree (and `default/<id>/`), so before/after can be compared.
+- [x] Co-op run save redirected to `parties/<party>/run.save`; progress, stats, metrics, daily score skipped; history to `parties/<party>/history/`; progress reloaded from disk at session end.
+- [x] `tools/hash-profile.ps1` (`-Out`, `-Before/-After`) and `tools/hash-profile.sh` (`snapshot`, `compare`).
 
-### 1.9 Drop detection and rejoin
-- [ ] Heartbeat on the control channel. When a seat's heartbeat stops, or ENet reports the peer gone, the host makes sure the game sees the disconnect: report it through the game's disconnect path, or patch the ignored ENet `Disconnect` event in `ENetHost.Update`.
-- [ ] A dropped seat rejoins with the same seat ID and token through the vanilla rejoin flow (`ClientRejoinRequestMessage`), including mid-combat.
+### 1.9 Drop detection (rejoin changed)
+- [x] Heartbeat on the control channel; on a lost seat the host calls the game's `DisconnectClient`, so the game sees the drop.
+- [x] **Changed from the plan:** the game has no working rejoin into a running run (see `docs/findings.md` → M1 findings). A dropped player is reported on the host with instructions; the party continues through the design's fallback: Save and Quit, reopen the party, everyone rejoins the load lobby (the current room restarts). A client joining a running run gets a readable message instead of a generic error. Live rejoin is deferred.
 
-### 1.10 Docs
-- [ ] `docs/findings.md`: every patch site, with the game build.
-- [ ] `docs/game-version.md`: re-check the game build before the gate.
+### 1.10 Docs and test switches
+- [x] `docs/findings.md` → M1 patch sites and findings.
+- [x] Test switches `--spireparty-host=<party>` and `--spireparty-join=<addr>,<seat>[,<token>]` (DevLaunch adapter), like the game's `--fastmp`.
 
 ## Gate test (Windows VM)
 
-Exact steps go in the gate commit. Checks:
+Close every game window first. All commands run in PowerShell in the repository folder.
 
-1. Hash the profile folders (`tools/hash-profile.ps1`).
-2. Host (Steam on, launched through Steam) → SpireParty Host → create party "gate"; a client (`--force-steam off`) → SpireParty Join `127.0.0.1`, new seat "tester" → gets a token → reaches the character select.
-3. Play through the Act 1 boss.
-4. Mid-act, kill the client process. The host notices within the heartbeat timeout; the client rejoins with seat "tester" and its token and continues.
-5. Save and quit on the host; reopen the party; the client rejoins the load lobby; play on.
-6. Refusals give readable reasons: wrong token, unknown seat while the lobby is closed, mismatched SpireParty version.
-7. Hash the profile folders again: only expected files changed (settings and prefs from normal UI use); no run save, progress or history written to the profile.
-8. Vanilla co-op through the normal Host button still works and still uses Steam.
-9. `dotnet test` passes.
+**Setup**
+1. Deploy the current build:
+   `dotnet build -c Debug; powershell -File tools/deploy.ps1`
+2. Snapshot your profile folders:
+   `powershell -File tools/hash-profile.ps1 -Out spikes/logs/before.txt`
+
+**Host and join**
+
+3. Start the game **through Steam** (the host). Multiplayer → **SpireParty Host** → type `gate` → Create. You land in the character select.
+4. Start the second game (the client, no Steam):
+   `Start-Process "C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\SlayTheSpire2.exe" -WorkingDirectory "C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2" -ArgumentList '--force-steam','off','--clientId=1000','--log-file',"$PWD\spikes\logs\gate-client.log"`
+5. In the client: Multiplayer → **SpireParty Join** → address `127.0.0.1`, seat `tester`, token empty → Join. ✔ A "Your seat token" box shows a token: write it down. ✔ Both games show two players in the character select.
+
+**Refusals**
+
+6. In a third game started like step 4 but with `--clientId=1001`: SpireParty Join `127.0.0.1`, seat `tester`, a wrong token. ✔ "Wrong token for seat "tester"." Close that game.
+
+**Play**
+
+7. Both pick a character, Ready, and play. Somewhere on the Act 1 map, check: ✔ `%APPDATA%\SlayTheSpire2\mods\SpireParty\parties\gate\run.save` exists.
+
+**Drop and continue**
+
+8. On the map, crash the client:
+   `Get-CimInstance Win32_Process -Filter "Name='SlayTheSpire2.exe'" | Where-Object CommandLine -match 'clientId=1000' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`
+   ✔ Within about 10 seconds the host shows "tester lost connection".
+9. Host: pause → **Save and Quit** → Multiplayer → SpireParty Host → **gate (run in progress)**. ✔ Load lobby.
+10. Start the client again (step 4), SpireParty Join with seat `tester` **and the token**. ✔ The client is in the load lobby; both Ready; the run continues from the saved point.
+11. While the run is going, try another join as seat `nobody` (step 6 setup). ✔ A readable "no seat ... not taking new players" message.
+
+**Finish**
+
+12. Play through the Act 1 boss.
+13. Close both games. Snapshot again and compare:
+    `powershell -File tools/hash-profile.ps1 -Out spikes/logs/after.txt`
+    `powershell -File tools/hash-profile.ps1 -Before spikes/logs/before.txt -After spikes/logs/after.txt`
+    ✔ Expected: no `current_run_mp.save` and nothing in `history/` changed; `settings.save`, `prefs.save` and `profile.save` may change from normal menu use. Send me the full output either way: I match every change against the logs, which mark when each session started and ended (a `progress.save` written from the menus outside a session is vanilla behaviour, one written during the party run is a failure).
+14. Vanilla still works: start the game through Steam → Multiplayer → the normal **Host**. ✔ The Steam lobby opens as before. Back out.
+15. `dotnet test` passes.
+
+Send me: the step 13 output, any step that did not show ✔, and nothing else unless something broke (I read the logs myself).
