@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    Per-machine override, in order of precedence:
+      1. Directory.Build.props.user (gitignored) setting <Sts2GameDir>
+      2. Environment variable STS2_GAME_DIR
+      3. Default Steam install path for the build OS
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.props.user"
+          Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.props.user')" />
+
+  <PropertyGroup>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == '' and '$(STS2_GAME_DIR)' != ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2</Sts2GameDir>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">$(HOME)/.local/share/Steam/steamapps/common/Slay the Spire 2</Sts2GameDir>
+
+    <Sts2DataDirName Condition="$([MSBuild]::IsOSPlatform('Windows'))">data_sts2_windows_x86_64</Sts2DataDirName>
+    <Sts2DataDirName Condition="$([MSBuild]::IsOSPlatform('Linux'))">data_sts2_linuxbsd_x86_64</Sts2DataDirName>
+    <Sts2DataDir>$([System.IO.Path]::Combine('$(Sts2GameDir)', '$(Sts2DataDirName)'))</Sts2DataDir>
+    <Sts2ModsDir>$([System.IO.Path]::Combine('$(Sts2GameDir)', 'mods', 'SpireParty'))</Sts2ModsDir>
+  </PropertyGroup>
+</Project>

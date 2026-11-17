@@ -1,0 +1,16 @@
+bin/
+obj/
+*.user
+Directory.Build.props.user
+.vs/
+.idea/
+*.swp
+
+# Decompiled game code: never commit (CLAUDE.md hard rule 2)
+decompiled/
+
+# Spike logs
+spikes/logs/
+
+# Copies of game saves made by spikes
+spikes/save-surgery/work/
