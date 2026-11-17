@@ -110,3 +110,31 @@ Close every game window first. All commands run in PowerShell in the repository 
 15. `dotnet test` passes.
 
 Send me: the step 13 output, any step that did not show ✔, and nothing else unless something broke (I read the logs myself).
+
+## Gate result — Windows VM: PASSED 2026-11-17
+
+Game v0.113.1 (d09d48e5), Steam build 26660232, SpireParty 0.0.1. The user did the gameplay; Claude ran the commands and read the logs.
+
+| Check | Result |
+| --- | --- |
+| Host (Steam) creates party "gate"; client (no Steam) joins as new seat "tester" (player 7000002); token shown once | Pass |
+| Wrong token refused with reason; unknown seat "nobody" refused while the run is in progress | Pass |
+| Unauthorized ENet join (vanilla `--fastmp join`) disconnected by peer binding (smoke test) | Pass |
+| Client crashed on the map: host detected it at once and disconnected the player in the game | Pass |
+| Save and Quit, reopen the party, client rejoins the load lobby with its token, run continues | Pass |
+| Played through the Act 1 boss into Act 2; run saved only to `parties/gate/run.save` (+ `.backup`) | Pass |
+| Profile hash compare | **Failed on run 1, fixed, then passed twice** (below) |
+| Vanilla Host button still uses Steam (SteamHost) | Pass |
+| `dotnet test` | Pass (64) |
+
+**Profile guard, three runs:**
+1. Run 1 leaked `progress.save` (tutorial flags through `ProgressSaveManager.MarkFtueAsComplete`) and `replays/latest.mcr` into the modded profile during the session. Fixed in `35c0c97`.
+2. Re-check 1 (Steam game as client): `progress.save` clean; one final replay was written just after the session ended. Fixed in `5c32e23`.
+3. Re-check 2 (Steam game as host): **no changes in any profile folder.**
+
+**Notes from the gate**
+- The user forgot the seat token; it was reset by hand in `party.json` (backup kept). The host-side "reset token" action (design: roster screen) is needed early in M2.
+- Lobby names show player IDs for non-Steam seats (cosmetic; see findings).
+- Neow is not offered on a profile's first run (it unlocks through an epoch); that is game behaviour, not a SpireParty issue.
+
+**Next:** the Fedora checkpoint (`docs/MILESTONE-0.md` → 0.5, plus Act 1 over Tailscale with each OS as host).

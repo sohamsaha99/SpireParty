@@ -4,7 +4,7 @@ The game build SpireParty is developed and tested against. Re-check `release_inf
 
 | Field | Value |
 | --- | --- |
-| Checked on | 2026-11-16 |
+| Checked on | 2026-11-16, re-checked 2026-11-17 before the M1 gate (unchanged) |
 | Steam branch (beta key) | `public-beta` |
 | Steam build ID | 26660232 |
 | `release_info.json` version | v0.113.1 |
@@ -23,4 +23,4 @@ The game build SpireParty is developed and tested against. Re-check `release_inf
 | Machine | OS | Build verified | SpireParty loads |
 | --- | --- | --- | --- |
 | Windows VM | Windows 11 Pro 10.0.26200 | v0.113.1 / Steam 26660232 | Yes (0.0.1, 2026-11-16) |
-| Linux laptop | Fedora | not yet checked | not yet checked |
+| Linux laptop | Fedora | not yet checked (Fedora checkpoint) | not yet checked |
