@@ -1,0 +1,133 @@
+using System;
+using System.Buffers.Binary;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace SpireParty.Net;
+
+/// <summary>Messages on the SpireParty control channel (TCP, game port number).</summary>
+public abstract record ControlMessage;
+
+/// <summary>Client → host, first message. Token is empty when asking for a new seat.</summary>
+public sealed record Hello(string SpirePartyVersion, string GameVersion, string GameCommit, string SeatId, string Token) : ControlMessage;
+
+/// <summary>Host → client. <see cref="NewToken"/> is set only when the seat was just created or its token reset.</summary>
+public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, string? NewToken, string Unlocks, int HeartbeatSeconds) : ControlMessage;
+
+/// <summary>Host → client, then the host closes the connection.</summary>
+public sealed record Refuse(string Code, string Reason) : ControlMessage;
+
+public sealed record Heartbeat : ControlMessage;
+
+/// <summary>Either side, before closing on purpose (so the other side does not treat it as a drop).</summary>
+public sealed record Bye(string Reason) : ControlMessage;
+
+/// <summary>
+/// Framing: 4-byte big-endian length, then UTF-8 JSON with a "type" field.
+/// Hand-written JSON (no reflection-based serializer) so it works in any runtime configuration.
+/// </summary>
+public static class ControlCodec
+{
+    public const int MaxFrameBytes = 16 * 1024;
+
+    public static byte[] Encode(ControlMessage message)
+    {
+        JsonObject o = message switch
+        {
+            Hello h => new JsonObject
+            {
+                ["type"] = "hello", ["spireparty"] = h.SpirePartyVersion, ["gameVersion"] = h.GameVersion,
+                ["gameCommit"] = h.GameCommit, ["seatId"] = h.SeatId, ["token"] = h.Token,
+            },
+            Welcome w => new JsonObject
+            {
+                ["type"] = "welcome", ["playerId"] = w.PlayerId, ["seatId"] = w.SeatId, ["party"] = w.PartyName,
+                ["newToken"] = w.NewToken, ["unlocks"] = w.Unlocks, ["heartbeatSeconds"] = w.HeartbeatSeconds,
+            },
+            Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
+            Heartbeat => new JsonObject { ["type"] = "heartbeat" },
+            Bye b => new JsonObject { ["type"] = "bye", ["reason"] = b.Reason },
+            _ => throw new ArgumentException($"unknown message {message.GetType().Name}"),
+        };
+        byte[] json = Encoding.UTF8.GetBytes(o.ToJsonString());
+        if (json.Length > MaxFrameBytes) throw new InvalidDataException("control message too large");
+        var frame = new byte[4 + json.Length];
+        BinaryPrimitives.WriteInt32BigEndian(frame, json.Length);
+        json.CopyTo(frame, 4);
+        return frame;
+    }
+
+    /// <summary>Parses one JSON payload. Throws <see cref="InvalidDataException"/> on anything malformed.</summary>
+    public static ControlMessage Decode(ReadOnlySpan<byte> json)
+    {
+        JsonObject o;
+        try
+        {
+            o = JsonNode.Parse(json) as JsonObject ?? throw new InvalidDataException("not a JSON object");
+        }
+        catch (JsonException e)
+        {
+            throw new InvalidDataException($"bad JSON: {e.Message}");
+        }
+
+        string Str(string key) => o[key] is JsonValue v && v.TryGetValue(out string? s) ? s : "";
+        try
+        {
+            return Str("type") switch
+            {
+                "hello" => new Hello(Str("spireparty"), Str("gameVersion"), Str("gameCommit"), Str("seatId"), Str("token")),
+                "welcome" => new Welcome(o["playerId"]!.GetValue<ulong>(), Str("seatId"), Str("party"),
+                    o["newToken"] is JsonValue t && t.TryGetValue(out string? nt) ? nt : null,
+                    Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2),
+                "refuse" => new Refuse(Str("code"), Str("reason")),
+                "heartbeat" => new Heartbeat(),
+                "bye" => new Bye(Str("reason")),
+                var other => throw new InvalidDataException($"unknown message type \"{other}\""),
+            };
+        }
+        catch (Exception e) when (e is not InvalidDataException)
+        {
+            throw new InvalidDataException($"bad message: {e.Message}");
+        }
+    }
+
+    public static async Task WriteAsync(Stream stream, ControlMessage message, CancellationToken ct)
+    {
+        byte[] frame = Encode(message);
+        await stream.WriteAsync(frame, ct).ConfigureAwait(false);
+        await stream.FlushAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads one frame. Returns null on a clean end of stream.</summary>
+    public static async Task<ControlMessage?> ReadAsync(Stream stream, CancellationToken ct)
+    {
+        var header = new byte[4];
+        if (!await ReadExactlyOrEnd(stream, header, ct).ConfigureAwait(false)) return null;
+        int length = BinaryPrimitives.ReadInt32BigEndian(header);
+        if (length <= 0 || length > MaxFrameBytes) throw new InvalidDataException($"bad frame length {length}");
+        var payload = new byte[length];
+        if (!await ReadExactlyOrEnd(stream, payload, ct).ConfigureAwait(false))
+            throw new EndOfStreamException("connection closed mid-message");
+        return Decode(payload);
+    }
+
+    static async Task<bool> ReadExactlyOrEnd(Stream stream, byte[] buffer, CancellationToken ct)
+    {
+        int read = 0;
+        while (read < buffer.Length)
+        {
+            int n = await stream.ReadAsync(buffer.AsMemory(read), ct).ConfigureAwait(false);
+            if (n == 0)
+            {
+                if (read == 0) return false;
+                throw new EndOfStreamException("connection closed mid-message");
+            }
+            read += n;
+        }
+        return true;
+    }
+}

@@ -1,0 +1,87 @@
+using System.Collections.Generic;
+using System.Linq;
+
+namespace SpireParty.Core;
+
+/// <summary>What the host knows about itself when judging a hello.</summary>
+public sealed record HostIdentity(string SpirePartyVersion, string GameVersion, string GameCommit);
+
+/// <summary>Live lobby state the decision depends on.</summary>
+public sealed record LobbyState(bool OpenForNewSeats, int PlayerCap, IReadOnlyCollection<string> ConnectedSeatIds);
+
+public abstract record HandshakeDecision;
+public sealed record Admit(Seat Seat, string? NewToken) : HandshakeDecision;
+public sealed record Deny(string Code, string Reason) : HandshakeDecision;
+
+/// <summary>
+/// The host's answer to a hello, as a pure function over the in-memory party (it may add a seat).
+/// Every refusal has a code and a readable reason the joining player sees.
+/// </summary>
+public static class HostHandshake
+{
+    public static HandshakeDecision Decide(
+        HostIdentity host, string spirePartyVersion, string gameVersion, string gameCommit,
+        string rawSeatId, string token, string address,
+        PartyFile party, LobbyState lobby, FailedAttemptLimiter limiter)
+    {
+        if (spirePartyVersion != host.SpirePartyVersion)
+            return new Deny("spireparty_version",
+                $"The host runs SpireParty {host.SpirePartyVersion}, you run {spirePartyVersion}. Install the same version.");
+
+        if (gameVersion != host.GameVersion || gameCommit != host.GameCommit)
+            return new Deny("game_version",
+                $"The host runs game {host.GameVersion} ({host.GameCommit}), you run {gameVersion} ({gameCommit}). " +
+                "Update the game, and make sure you are both on the same Steam branch.");
+
+        if (limiter.IsBlocked(address))
+            return new Deny("rate_limited", "Too many failed attempts from your address. Wait a minute and try again.");
+
+        string seatId = SeatRules.Normalize(rawSeatId);
+        if (!SeatRules.IsValidSeatId(seatId))
+            return new Deny("bad_seat_id",
+                $"\"{rawSeatId}\" is not a valid seat ID: use 1 to {SeatRules.MaxSeatIdLength} letters, digits or dashes, starting with a letter.");
+
+        if (seatId == PartyStore.HostSeatId)
+            return new Deny("host_seat", "The host seat cannot be claimed from another game.");
+
+        var seat = party.Seats.FirstOrDefault(s => s.SeatId == seatId);
+        if (seat == null)
+        {
+            if (!lobby.OpenForNewSeats)
+                return new Deny("lobby_closed",
+                    $"There is no seat \"{seatId}\" and the host is not taking new players right now.");
+            if (party.Seats.Count(s => s.State == SeatState.Active) >= lobby.PlayerCap)
+                return new Deny("party_full", $"The party is full ({lobby.PlayerCap} players).");
+
+            string newToken = SeatTokens.Generate();
+            seat = new Seat
+            {
+                SeatId = seatId,
+                PlayerId = SeatRules.AllocatePlayerId(party),
+                TokenHash = SeatTokens.Hash(newToken),
+                DisplayName = seatId,
+            };
+            party.Seats.Add(seat);
+            limiter.RecordSuccess(address);
+            return new Admit(seat, newToken);
+        }
+
+        if (!SeatTokens.Verify(token, seat.TokenHash))
+        {
+            limiter.RecordFailure(address);
+            return new Deny("wrong_token", string.IsNullOrWhiteSpace(token)
+                ? $"Seat \"{seatId}\" already exists. Enter its token (the host can reset it)."
+                : $"Wrong token for seat \"{seatId}\".");
+        }
+
+        if (seat.State == SeatState.Benched)
+            return new Deny("seat_benched", $"Seat \"{seatId}\" is benched. Ask the host to restore it first.");
+        if (seat.State == SeatState.Empty)
+            return new Deny("seat_empty", $"Seat \"{seatId}\" was removed from this party.");
+        if (lobby.ConnectedSeatIds.Contains(seatId))
+            return new Deny("seat_in_use", $"Seat \"{seatId}\" is already connected from another game.");
+
+        limiter.RecordSuccess(address);
+        return new Admit(seat, null);
+    }
+}
