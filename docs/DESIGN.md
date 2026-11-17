@@ -274,6 +274,8 @@ Vanilla forbids this outright: [a replacement player cannot be added midway, and
 
 In Dread, a new player also starts with the Ascender's Banes the party has collected so far: one, plus one per act already finished.
 
+**At least two active seats.** The game will not resume a saved co-op run with only one player connected (`LoadRunLobby.IsAboutToBeginGame`), so SpireParty refuses any bench or remove that would leave fewer than two active seats, with that reason. A player who wants to continue alone plays single-player instead.
+
 **Fail closed.** Before benching or removing, SpireParty scans the run state for any other reference to that player's ID. If it finds one it does not know how to clean up, it refuses the edit and names it, instead of writing a save that may not load. Backups make every edit reversible.
 
 ## Single-mod packaging and code reuse

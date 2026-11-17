@@ -351,7 +351,7 @@ A 2-player save was made with `spikes/two-player.ps1`: host ID 1 and client ID 1
 ## Consequences for M2
 
 - **Use the game's serializer for roster edits**, as the design says. It works outside the game too, so roster-editing logic can be unit-tested on fixture saves without the game.
-- **Minimum two active seats.** A party cannot resume a run with one active seat, so SpireParty either refuses a bench that leaves one active seat, or patches `LoadRunLobby.IsAboutToBeginGame` for party runs. **User decision needed.** The simplest choice is to refuse, since a solo player can play single-player.
+- **Minimum two active seats.** A party cannot resume a run with one active seat. **Decided 2026-11-17 (user): refuse** any bench or remove that would leave fewer than two active seats; no patch to `LoadRunLobby.IsAboutToBeginGame`. Recorded in `docs/DESIGN.md` → Join and leave mid-run.
 - **Backfill is required and sufficient for loading.** Still unverified: the run-end paths that walk every floor (`NGameOverScreen` gold total, `ProgressSaveManager`, `MetricUtilities`, run-history screen) after a real mid-run add. Verify by finishing a run in M2.
 - **Benched players' history stays in the save.** The game tolerated it here (load, play, save). `ScoreUtility` divides by the current player count, so the score may skew slightly; that is cosmetic.
 
