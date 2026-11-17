@@ -25,7 +25,7 @@
 
 ### 0.3 Answer the open questions
 
-**Done 2026-11-16** (pending user review): see `docs/findings.md` → Open questions answered. Question 7 is deferred to 0.5 (needs the tailnet).
+**Done 2026-11-16; reviewed by the user 2026-11-17.** See `docs/findings.md` → Open questions answered. Question 7 is deferred to 0.5 (needs the tailnet).
 
 For each question, record in `docs/findings.md`: classes and methods involved, what the code does, whether the design's simplest assumption holds, and the approach chosen (assumption or fallback).
 
