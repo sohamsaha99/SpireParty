@@ -138,3 +138,24 @@ Game v0.113.1 (d09d48e5), Steam build 26660232, SpireParty 0.0.1. The user did t
 - Neow is not offered on a profile's first run (it unlocks through an epoch); that is game behaviour, not a SpireParty issue.
 
 **Next:** the Fedora checkpoint (`docs/MILESTONE-0.md` → 0.5, plus Act 1 over Tailscale with each OS as host).
+
+## Fedora checkpoint: PASSED 2026-11-17
+
+Windows VM (v0.113.1, Steam 26660232) and Fedora 44 laptop (same version, commit, Steam build and `public-beta` branch) over Tailscale. SpireParty 0.0.1, the identical DLL on both (SHA-256 `5d3c4c34…`). On the user's request nothing was installed on the laptop: the DLL and manifest were copied into its `mods/SpireParty/` over Tailscale SSH, and logs and profile hashes were read over SSH.
+
+| Check | Result |
+| --- | --- |
+| Mod loads on Linux; all 5 adapters self-check; model hash 1748280997 matches Windows | Pass |
+| Windows hosts (no Steam), Linux joins over Tailscale (new seat, token), plays; Save and Quit, reopen, Linux rejoins: full save (~58 KB) sent over the tunnel | Pass; ping 35–52 ms, no loss |
+| Linux hosts (Steam), Windows joins over Tailscale, plays; Save and Quit, reopen, Windows rejoins: full save (~52 KB) sent over the tunnel | Pass; max sampled loss 0.24%, no errors |
+| No state divergence, exceptions or drops on either side | Pass |
+| Profile hash compare, both machines, both directions | Pass: no run data written; only settings files from menu use and the game's own first-modded-launch copy |
+| `tools/deploy.sh` on Linux | **Not tested**: needs the .NET SDK, which the user chose not to install on the laptop. Only matters for developing on Linux |
+
+**Scope agreed with the user:** instead of a full Act 1 in each direction, each direction played several rooms plus a Save and Quit and reload over the tunnel. The reload sends the largest message the game has (the whole saved run), which is the real test for the tunnel's packet size. The full Act 1 was already played on the Windows gate.
+
+**Open question 7 answered:** ENet over Tailscale works with the game's defaults. The ~50–60 KB load-join message crossed the 1280-byte tunnel in both directions, with ENet fragmenting it. No custom transport is needed.
+
+**User observation:** on the laptop's fresh modded profile, the game's first-time tutorials appear in every party session. Tutorial "seen" flags are profile writes, and the profile guard blocks them during a party run.
+
+**M2 may start** (DESIGN → Milestones: M2 waits for the Fedora checkpoint).

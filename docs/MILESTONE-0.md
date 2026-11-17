@@ -66,9 +66,9 @@ Do the second-process spike first: the save-surgery prototype and the M1 Windows
 
 Run these at the Fedora checkpoint, together with the M1 cross-OS gate.
 
-- [ ] Linux laptop on the same Steam branch and build as the VM (`docs/game-version.md`).
-- [ ] `tools/deploy.sh --build` works; the mod loads in modded mode; record the Linux user data dir and build in `docs/game-version.md` and `docs/findings.md`.
-- [ ] Open question 7 (ENet over Tailscale's 1280-byte MTU) tested across the tailnet.
+- [x] Linux laptop on the same Steam branch and build as the VM (`docs/game-version.md`). Done 2026-11-17.
+- [x] The mod loads in modded mode on Linux; Linux user data dir and build recorded (2026-11-17). `tools/deploy.sh` not tested: no .NET on the laptop, by user choice.
+- [x] Open question 7 tested across the tailnet: works with ENet defaults (2026-11-17).
 - ~~Save surgery, if it could not be done on the VM alone.~~ Not needed: done on the VM.
 
 ## Out of scope for M0

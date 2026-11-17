@@ -372,7 +372,7 @@ The biggest risk is not any single feature but game patches breaking networking 
 - The assumption holds for 3, 4, 6, 8, 11, 12, 13, 14 and 15. For 14, the vanilla rejoin flow is the first answer to a drop.
 - It holds partly for 1, 2 and 9.
 - It fails for 5 and 10; the fallbacks apply. For 5, the lobby wire format must also be widened.
-- Question 7 is still open, and its fallback changes: the MTU cannot be set from Godot's API, so the fallback is a custom transport. It will be tested at the Fedora checkpoint.
+- Question 7 (Tailscale MTU) was tested at the Fedora checkpoint: ENet works with its defaults over the tunnel, so the fallback (a custom transport, since Godot cannot set the MTU) is not needed.
 
 | Question | Simplest assumption | Fallback if wrong |
 | --- | --- | --- |
