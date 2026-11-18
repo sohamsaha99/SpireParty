@@ -480,3 +480,11 @@ Self-check targets for the roster editor: `RunState.FromSerializable`, `RunState
 
 - `NPauseMenu._Ready` builds the menu from named buttons under `%ButtonContainer` (`Resume`, `Settings`, `Compendium`, `GiveUp`, `Disconnect`, `SaveAndQuit`) and connects them in code. Save and Quit (host and single-player only) calls `CloseToMenu` → `NGame.ReturnToMainMenu`; it does not save, because the run was already saved at room entry or after combat.
 - A copy of the `SaveAndQuit` node made with `Duplicate` without `DuplicateFlags.Signals` works as a new button: its script runs, and code-made connections are not copied. `NGame.Instance.MainMenu` is the main menu once it is the current scene.
+
+## M2 Windows gate (v0.113.1, 2026-11-18)
+
+- **Game-over badges write the profile.** `NGameOverScreen.AnimateBadges` calls `SaveBadgesToProgress`, which indexes `Progress.CharacterStats[character]` before looking at the badges. That entry is created by `UpdateProgressWithRunData`, which the profile guard skips, so every party game over threw `KeyNotFoundException` (even with no badges) and cut the animation short. The profile guard now skips `SaveBadgesToProgress` in party sessions; the badges still show.
+- **Run History shows only the profile.** Party runs are saved to `parties/<party>/history/` and never appear in the game's Run History screen. A party-history viewer is not planned for M2.
+- **Launching the host through Steam:** starting `SlayTheSpire2.exe` directly with the `SteamAppId` environment variable lost the Steam connection ("Steam is no longer running", cloud-sync error popups). `steam://rungameid/2868840` works.
+- **A client crashed when Steam started the host:** an access violation (0xc0000005) inside `SlayTheSpire2.exe`, the same second the Steam host started (12:11:42). It happened once and did not recur on relaunch; the cause is unknown.
+- **Test harness:** game processes started from a Claude Code session end when the desktop app restarts (an app update closed three clients mid-combat; the Steam-launched host survived). Gate clients are now started through WMI (`Win32_Process.Create`), which is outside the app's process tree.

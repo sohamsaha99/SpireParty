@@ -98,15 +98,16 @@ Order: 2.1 first (the one real unknown), then 2.2–2.6 (testable without the ga
 - [x] **Edit roster** in the pause menu for the host during a party session (`PauseMenuAdapter`, a copy of the Save and Quit button): runs the game's Save and Quit (`NPauseMenu.CloseToMenu`), then, once the session has ended and the main menu is up, opens the roster editor for that party. Clients don't get it.
 - In-game (user): button shown on the host only; pressing it saved, quit and opened the roster for "pause29"; the log shows the session ended first.
 
-### 2.10 Run end after a mid-run add
-- [ ] Verify on a real run (gate step) that the game-over screen, the history record in `parties/<party>/history/` and the run-history screen work with backfilled and benched players. Record in findings.
+### 2.10 Run end after a mid-run add — done 2026-11-18 (gate step 10)
+- [x] Game over (Give Up) with four players, one restored and one added mid-run: the game-over screen showed all four and the history record was written to `parties/m2gate/history/`. The game's Run History screen reads only the profile, so party runs never appear there (by design; no party-history viewer in M2).
+- Fixed: `NGameOverScreen.SaveBadgesToProgress` threw `KeyNotFoundException` in every instance (the profile's character-stats entry is only created by the run-data update SpireParty skips), cutting the badge animation short. `ProfileGuardAdapter` now skips it in party sessions; a second game over showed no exception.
 
 ### 2.11 Docs — done 2026-11-17
 - [x] `docs/findings.md` → M2 findings (new player, scan, names, unlocks, pause menu); `docs/DESIGN.md` updated: roster check not patched, open seats, edits on the save after Save and Quit (any save is between encounters), backups and rename in the host flow, fail-closed scan of the whole save, gold catch-up to the highest, display names. Done 2026-11-17.
 
 ## Gate test (Windows VM)
 
-I run every command (build, deploy, launching the games, killing processes, hashes, logs). You do the clicks and the playing. The host runs with Steam (started by me with `SteamAppId`, so it uses your modded Steam profile); clients run `--force-steam off --clientId=<n>` with their own `--log-file`. Client A joins through the **Join form**; the others through the dev switch.
+I run every command (build, deploy, launching the games, killing processes, hashes, logs). You do the clicks and the playing. The host runs with Steam (started by me with `steam://rungameid/2868840`, so it uses your modded Steam profile; click Play Modded if asked); clients run `--force-steam off --clientId=<n>` with their own `--log-file`. Client A joins through the **Join form**; the others through the dev switch.
 
 **Setup**
 
@@ -128,7 +129,7 @@ I run every command (build, deploy, launching the games, killing processes, hash
 **Backups and run end**
 
 9. Host: pause → Edit roster → Back → **Backups**. **Restore** the one "before: restore bravo". ✔ Roster shows bravo benched and no charlie (and the run as it was then). Back to Backups, **Restore** the newest ("before restoring …"). ✔ Everything is back as after step 8.
-10. Continue with all four, then host: pause → **Give Up** (or lose a fight). ✔ The game-over screen shows all four players. ✔ I find a `.run` file in `parties/m2gate/history/`. Host: main menu → Run History: ✔ it opens that run.
+10. Continue with all four, then host: pause → **Give Up** (or lose a fight). ✔ The game-over screen shows all four players. ✔ I find a `.run` file in `parties/m2gate/history/` and no exception in any log. (The game's Run History screen shows only profile runs, so a party run is not expected there.)
 
 **Finish**
 
@@ -136,6 +137,22 @@ I run every command (build, deploy, launching the games, killing processes, hash
 12. Vanilla: I start the game through Steam; you open Multiplayer → the normal **Host**. ✔ The Steam lobby opens; single-player character select shows your own unlocks. Back out. I run `dotnet test`.
 
 Send me both tokens (step 2) and anything that did not show ✔. I read the logs myself.
+
+### Result (Windows VM, v0.113.1, 2026-11-18): passed
+
+| Step | Result |
+| --- | --- |
+| 1 | Build, 163 tests, deploy, profile snapshot (74 files) |
+| 2 | Host through Steam (the earlier `SteamAppId` direct launch lost Steam, see findings). Alpha joined through the Join form, Bravo through the dev switch; both got tokens; the lobby showed the names |
+| 3–4 | Names on nameplates; Edit roster returned to the menu and opened the roster; bench bravo; bench alpha refused (minimum 2); one backup "before: bench bravo" |
+| 5 | Alpha rejoined with its token; Bravo refused with "Seat "bravo" is benched"; two rooms with host + Alpha |
+| 6 | Bravo restored unchanged (Regent, 36/75 HP, 191 gold, 12 cards); Charlie added (Silent) with 191 gold = the party's highest and 70 max HP = the starter's (party's lowest 66); alpha open |
+| 7 | Alpha and Charlie claimed their open seats with new tokens; Bravo joined with its old token; four in the load lobby |
+| 8 | **Shortened, accepted by the user:** one room and part of a combat with all four; 141 synced actions with matching checksums, no divergence. The clients then closed because the Claude desktop app updated itself and ended the processes it had started (not SpireParty; clients are now started through WMI). Steps 9–10 continued the four-player run |
+| 9 | Restored "before: restore bravo" (bravo benched, no charlie), then the newest safety backup (all four back); all three clients rejoined |
+| 10 | Game over with all four; history written to the party folder; badge exception found and fixed (see 2.10) |
+| 11 | Profile hashes unchanged (checked again after the fix run and after step 12) |
+| 12 | Vanilla through Steam: the normal Host opens the Steam lobby; character select shows the profile's own unlocks; 163 tests pass |
 
 ## Cross-OS gate
 

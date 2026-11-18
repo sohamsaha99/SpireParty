@@ -7,6 +7,8 @@ using MegaCrit.Sts2.Core.Daily;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Save;
 using MegaCrit.Sts2.Core.Logging;
+using MegaCrit.Sts2.Core.Models.Badges;
+using MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen;
 using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
@@ -44,6 +46,10 @@ public sealed class ProfileGuardAdapter : GameAdapter
         (typeof(MetricUtilities), nameof(MetricUtilities.UploadSettingsMetric), Type.EmptyTypes, nameof(SkipPrefix)),
         (typeof(DailyRunUtility), nameof(DailyRunUtility.UploadScore), null!, nameof(SkipTaskPrefix)),
         (typeof(StatsManager), nameof(StatsManager.IncrementArchitectDamage), new[] { typeof(int) }, nameof(SkipPrefix)),
+        // Game-over badges go into the profile's character stats. That entry is only created by the
+        // run-data update skipped above, so in a party run this threw KeyNotFoundException and cut the
+        // game-over animation short (M2 gate, 2026-11-18). The badges still show; they are just not saved.
+        (typeof(NGameOverScreen), "SaveBadgesToProgress", new[] { typeof(List<Badge>) }, nameof(SkipPrefix)),
     };
 
     public override string? SelfCheck()
