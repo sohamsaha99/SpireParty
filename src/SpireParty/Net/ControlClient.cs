@@ -28,6 +28,12 @@ public sealed class ControlClient : IDisposable
     /// <summary>Raised on a background thread when the host pauses or resumes the turn timer.</summary>
     public event Action<TimerPause>? TimerPauseReceived;
 
+    /// <summary>Raised on a background thread when the host sends the list of AFK seats.</summary>
+    public event Action<AfkList>? AfkListReceived;
+
+    /// <summary>Sends a message to the host (any thread); a lost connection is reported through HostLost.</summary>
+    public Task SendAsync(ControlMessage message) => Send(message);
+
     public Welcome Welcome { get; }
 
     ControlClient(TcpClient client, NetworkStream stream, Welcome welcome, TimeSpan timeout)
@@ -97,6 +103,11 @@ public sealed class ControlClient : IDisposable
                 if (message == null) { End("connection lost"); return; }
                 Interlocked.Exchange(ref _lastSeenTicks, DateTime.UtcNow.Ticks);
                 if (message is Bye bye) { End(bye.Reason.Length > 0 ? bye.Reason : "host closed the party"); return; }
+                if (message is AfkList afkList)
+                {
+                    try { AfkListReceived?.Invoke(afkList); }
+                    catch (Exception e) when (e is not OperationCanceledException) { /* a handler bug must not drop the channel */ }
+                }
                 if (message is TimerPause pause)
                 {
                     try { TimerPauseReceived?.Invoke(pause); }

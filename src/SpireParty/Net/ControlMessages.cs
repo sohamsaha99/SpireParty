@@ -33,6 +33,12 @@ public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, st
 /// <summary>Host → clients: the host paused or resumed the turn timer for everyone.</summary>
 public sealed record TimerPause(bool Paused) : ControlMessage;
 
+/// <summary>Client → host: the local player was marked AFK, or came back. The host takes the seat from the connection.</summary>
+public sealed record AfkReport(bool IsAfk) : ControlMessage;
+
+/// <summary>Host → clients: every seat currently marked AFK, by player ID.</summary>
+public sealed record AfkList(IReadOnlyList<ulong> PlayerIds) : ControlMessage;
+
 /// <summary>Host → clients whenever a seat's display name changes: every seat's name, by player ID.</summary>
 public sealed record Roster(IReadOnlyDictionary<ulong, string> Names) : ControlMessage;
 
@@ -73,6 +79,8 @@ public static class ControlCodec
             },
             Roster r => new JsonObject { ["type"] = "roster", ["names"] = EncodeNames(r.Names) },
             TimerPause p => new JsonObject { ["type"] = "timerPause", ["paused"] = p.Paused },
+            AfkReport a => new JsonObject { ["type"] = "afk", ["afk"] = a.IsAfk },
+            AfkList l => new JsonObject { ["type"] = "afkList", ["players"] = new JsonArray(l.PlayerIds.Select(id => (JsonNode)JsonValue.Create(id)).ToArray()) },
             Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
             Heartbeat => new JsonObject { ["type"] = "heartbeat" },
             Bye b => new JsonObject { ["type"] = "bye", ["reason"] = b.Reason },
@@ -116,6 +124,8 @@ public static class ControlCodec
                     o["timerPaused"] is JsonValue tp && tp.TryGetValue(out bool tpb) && tpb),
                 "roster" => new Roster(DecodeNames(o["names"]) ?? new Dictionary<ulong, string>()),
                 "timerPause" => new TimerPause(o["paused"] is JsonValue pv && pv.TryGetValue(out bool pb) && pb),
+                "afk" => new AfkReport(o["afk"] is JsonValue av && av.TryGetValue(out bool ab) && ab),
+                "afkList" => new AfkList(o["players"] is JsonArray pa ? pa.Select(n => n!.GetValue<ulong>()).ToList() : new List<ulong>()),
                 "refuse" => new Refuse(Str("code"), Str("reason")),
                 "heartbeat" => new Heartbeat(),
                 "bye" => new Bye(Str("reason")),

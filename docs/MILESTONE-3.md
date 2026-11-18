@@ -99,10 +99,10 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] Host pause and resume: "Pause turn timer" / "Resume turn timer" in the host's pause menu, broadcast as `timerPause`; the welcome carries the paused state for late joiners. Unit-tested codec; not yet tried in game (gate).
 - [x] Automated: a client with a dev switch that never ends its turn; the log shows the timer ending it. `--spireparty-idle` (`party-test.ps1 -Idle`); run `tt3`: the idle client's turns ended by the timer in three fights, clean logs.
 
-### 3.8 AFK auto-pass
-- [ ] `Core/AfkState` (pure, unit-tested): strikes, mark, clear on input, strikes reset when the player ends a turn themselves.
-- [ ] While AFK: the seat's own client ends its turn as soon as it can act. Banner: "You are marked AFK — move the mouse or press a key to come back". AFK state broadcast over the control channel.
-- [ ] Automated: the idle client from 3.7 is marked AFK after two timeouts and then passes at once.
+### 3.8 AFK auto-pass — done 2026-11-18
+- [x] `Core/AfkState` (pure, unit-tested): strikes, mark, clear on input, strikes reset when the player ends a turn themselves.
+- [x] While AFK: the seat's own client ends its turn as soon as it can act. Banner: "You are marked AFK — move the mouse or press a key to come back". AFK state broadcast over the control channel. The client reports `afk` to the host, which keeps the list (its own state, clients' reports, drops) and broadcasts `afkList`; every player sees "AFK: <names>". Input counts only inside the focused game window. While the host has paused the timer, an AFK seat is not passed. Seen by the user: both banners, the AFK seat passing at once, and coming back by moving the mouse inside its window (not outside).
+- [x] Automated: the idle client from 3.7 is marked AFK after two timeouts and then passes at once. Runs `afk3`, `afk3b`: marked after two timeouts, passing turns at once, host broadcast, clean logs.
 
 ### 3.9 Game modes in party runs
 - [ ] Creating a party offers the mode screens (Standard, Daily, Custom, Blitz, Dread); each hosts over ENet with the party's cap. Mode and modifiers stored in `party.json`, sent in the welcome.

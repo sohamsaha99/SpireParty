@@ -120,6 +120,7 @@ public sealed class HostSession
 
         session = new HostSession(store, folder, party, run, identity, server, netService);
         server.SeatLost += (seat, reason) => MainThread.Post(() => session.OnSeatLost(seat, reason));
+        server.MessageReceived += (seat, message) => MainThread.Post(() => session.OnClientMessage(seat, message));
         Current = session;
         SeatNames.Set(SeatNames.Of(party));
         PartyUnlocks.Set(PartyUnlocks.ForHost(party));
@@ -237,9 +238,28 @@ public sealed class HostSession
         }
     }
 
+    void OnClientMessage(ControlSeat seat, ControlMessage message)
+    {
+        if (Current != this || message is not AfkReport report) return;
+        if (AfkRoster.Set(seat.PlayerId, report.IsAfk)) BroadcastAfk($"seat \"{seat.SeatId}\" {(report.IsAfk ? "is AFK" : "is back")}");
+    }
+
+    /// <summary>The host's own player was marked AFK or came back (main thread).</summary>
+    public void SetLocalAfk(bool afk)
+    {
+        if (AfkRoster.Set(SeatRules.HostPlayerId, afk)) BroadcastAfk($"host {(afk ? "is AFK" : "is back")}");
+    }
+
+    void BroadcastAfk(string what)
+    {
+        Server.Broadcast(new AfkList(AfkRoster.PlayerIds.ToList()));
+        Log.Info($"{ModEntry.LogTag} AFK: {what}; now [{string.Join(", ", AfkRoster.PlayerIds)}]");
+    }
+
     void OnSeatLost(ControlSeat seat, string reason)
     {
         if (Current != this) return;
+        if (AfkRoster.Set(seat.PlayerId, false)) BroadcastAfk($"seat \"{seat.SeatId}\" left");
         // The game's ENet host never notices a crashed client on its own; tell it.
         if (NetService.IsConnected && NetService.NetHost?.ConnectedPeerIds.Contains(seat.PlayerId) == true)
             NetService.DisconnectClient(seat.PlayerId, reason == "left" ? NetError.Quit : NetError.Timeout);
@@ -270,6 +290,7 @@ public sealed class HostSession
         SeatNames.Clear();
         PartyUnlocks.Set(null);
         PartyGameplay.Reset();
+        AfkRoster.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} host session for \"{_party.Name}\" ended");
     }

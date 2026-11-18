@@ -41,6 +41,9 @@ public sealed class ControlServer : IDisposable
     /// <summary>Seat and reason ("left", "timeout", "kicked", "error").</summary>
     public event Action<ControlSeat, string>? SeatLost;
 
+    /// <summary>Any other message from a connected seat (background thread). The seat is the connection's, never the payload's.</summary>
+    public event Action<ControlSeat, ControlMessage>? MessageReceived;
+
     public int Port { get; }
 
     sealed class Session(ControlSeat seat, TcpClient client, NetworkStream stream)
@@ -177,6 +180,11 @@ public sealed class ControlServer : IDisposable
                 if (message == null) { await EndSession(session, "left", null).ConfigureAwait(false); return; }
                 Interlocked.Exchange(ref session.LastSeenTicks, DateTime.UtcNow.Ticks);
                 if (message is Bye) { await EndSession(session, "left", null).ConfigureAwait(false); return; }
+                if (message is not Heartbeat)
+                {
+                    try { MessageReceived?.Invoke(session.Seat, message); }
+                    catch (Exception e) { _log($"control channel: message handler threw {e}"); }
+                }
             }
         }
         catch (Exception e) when (e is IOException or SocketException or InvalidDataException or OperationCanceledException or ObjectDisposedException)

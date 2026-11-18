@@ -613,3 +613,10 @@ The game scales only enemy HP, block and some powers with the number of players;
 - The countdown is a `Label` added to the End Turn button (a ring would need a custom drawn node type, which a mod cannot easily register).
 - When a fight ends during a timed turn, that turn counts neither as timed out nor as ended by the player (so a fight won by others does not reset an AFK count).
 - Run `tt3` (3 autopilot players, client 2 idle, timer 30 s): the idle client's turn was ended by the timer in three fights; all logs clean. The user saw the countdown, the red last 10 s and the turn ending at zero.
+
+## AFK auto-pass (task 3.8, 2026-11-18)
+
+- `Core/AfkState` counts the turns the timer ended; `afkStrikes` in a row mark the local player AFK, a turn they end themselves resets the count, and real input clears the mark. A fight that ends during a timed turn counts neither way.
+- While AFK, `TurnTimerView` ends the turn as soon as the player can act (the label shows "AFK"), still waiting for an open card choice, and not while the host has paused the timer.
+- Real input = a key or button held (`Input.IsAnythingPressed`) or the mouse moving more than 4 px **inside** the window, and only while the window has focus. The first version also counted the mouse moving outside the window (`Window.GetMousePosition` keeps reporting it while the window has focus): the user moved the mouse elsewhere on the desktop and the idle test client came back. Fixed with a visible-rect check; the user confirmed movement outside no longer counts.
+- Control channel: `afk` (client → host; the host takes the seat from the connection) and `afkList` (host → clients, on every change, including a seat dropping). Every player sees "AFK: <names>"; the AFK player sees "You are marked AFK – move the mouse or press a key to come back". A player who joins while someone is already AFK sees the list from the next change on.

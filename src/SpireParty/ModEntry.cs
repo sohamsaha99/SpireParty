@@ -72,6 +72,7 @@ public static class ModEntry
             Log.Info($"{LogTag} player cap {Core.RosterEdit.GameCap}");
             UI.MainThread.Ensure();
             UI.TurnTimerView.Start();
+            UI.AfkView.Start();
         }
         catch (Exception e)
         {

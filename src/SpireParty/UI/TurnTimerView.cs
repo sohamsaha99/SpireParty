@@ -96,7 +96,9 @@ public static class TurnTimerView
         if (PartyGameplay.TimerPaused && !Timer.IsPaused) Timer.Pause(Now);
         if (!PartyGameplay.TimerPaused && Timer.IsPaused) Timer.Resume(Now);
 
-        if (!Timer.IsExpired(Now))
+        // AFK (and not paused by the host): no countdown, end the turn as soon as possible.
+        bool autoPass = AfkView.IsAfk && !Timer.IsPaused;
+        if (!Timer.IsExpired(Now) && !autoPass)
         {
             Show(Timer.IsPaused ? $"{TurnTimer.Format(Timer.Remaining(Now))} paused" : TurnTimer.Format(Timer.Remaining(Now)),
                  Timer.IsWarning(Now) && !Timer.IsPaused);
@@ -112,10 +114,10 @@ public static class TurnTimerView
         if (_endRequested && Now - _endRequestedAt < 1.5) return;
         var button = NCombatRoom.Instance?.Ui?.EndTurnButton;
         if (button == null) return;
-        if (!_endRequested) Log.Info($"{ModEntry.LogTag} turn timer: time is up on turn {_turn}, ending it");
+        if (!_endRequested) Log.Info($"{ModEntry.LogTag} turn timer: {(autoPass ? "AFK, passing" : "time is up on")} turn {_turn}, ending it");
         _endRequested = true;
         _endRequestedAt = Now;
-        Show("0:00", true);
+        Show(autoPass ? "AFK" : "0:00", true);
         button.CallReleaseLogic();
     }
 

@@ -29,6 +29,9 @@ public sealed class ClientSession
 {
     public static ClientSession? Current { get; private set; }
 
+    /// <summary>Tells the host the local player was marked AFK or came back (main thread).</summary>
+    public static void ReportAfk(bool afk) => _ = Current?._control.SendAsync(new AfkReport(afk));
+
     readonly ControlClient _control;
     INetGameService? _netService;
 
@@ -75,6 +78,7 @@ public sealed class ClientSession
         SpirePartySession.Begin(new SessionContext(SessionRole.Client, welcome.PartyName, null, welcome.SeatId, welcome.PlayerId));
         SeatNames.Set(welcome.Names ?? new System.Collections.Generic.Dictionary<ulong, string>());
         result.Client.RosterReceived += roster => SeatNames.Set(roster.Names);
+        result.Client.AfkListReceived += list => MainThread.Post(() => AfkRoster.Replace(list.PlayerIds));
         PartyGameplay.TimerPaused = welcome.TimerPaused;
         result.Client.TimerPauseReceived += p => MainThread.Post(() =>
         {
@@ -187,6 +191,7 @@ public sealed class ClientSession
         SeatNames.Clear();
         PartyUnlocks.Set(null);
         PartyGameplay.Reset();
+        AfkRoster.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} client session ended");
     }
