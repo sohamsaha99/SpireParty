@@ -113,6 +113,7 @@ public sealed class HostSession
         session = new HostSession(store, folder, party, run, identity, server, netService);
         server.SeatLost += (seat, reason) => MainThread.Post(() => session.OnSeatLost(seat, reason));
         Current = session;
+        SeatNames.Set(SeatNames.Of(party));
         SpirePartySession.Begin(new SessionContext(SessionRole.Host, party.Name, store.PartyDir(folder),
             PartyStore.HostSeatId, SeatRules.HostPlayerId));
         MainThread.EveryFrame += session.CheckStillRunning;
@@ -165,33 +166,55 @@ public sealed class HostSession
     {
         lock (_partyLock)
         {
-            bool open = _run == null;   // adding players to a saved run comes with the roster editor (M2)
+            // New seats only before a run starts; seats join a saved run only if they are in it (the roster
+            // editor adds players to a run while no session is running).
+            bool open = _run == null;
+            var runIds = _run?.Players.Select(p => p.NetId).ToList();
             var decision = HostHandshake.Decide(_identity, hello.SpirePartyVersion, hello.GameVersion, hello.GameCommit,
-                hello.SeatId, hello.Token, from.ToString(), _party, new LobbyState(open, PlayerCap, connected), _limiter);
+                hello.SeatId, hello.Token, from.ToString(), _party, new LobbyState(open, PlayerCap, connected, runIds), _limiter);
 
             if (decision is Deny deny) return new Refuse(deny.Code, deny.Reason);
             var admit = (Admit)decision;
 
-            if (_run != null && _run.Players.All(p => p.NetId != admit.Seat.PlayerId))
-                return new Refuse("not_in_run",
-                    $"Seat \"{admit.Seat.SeatId}\" is not part of this party's saved run. Adding players to a run in progress comes later.");
+            // The player's own name for their seat, if they typed one.
+            string oldName = admit.Seat.DisplayName;
+            string newName = SeatNames.Clean(hello.Name);
+            bool renamed = newName.Length > 0 && newName != oldName;
+            if (renamed) admit.Seat.DisplayName = newName;
 
-            if (admit.NewToken != null)
+            if (admit.NewToken != null || renamed)
             {
                 try { _store.Save(_folder, _party); }
                 catch (Exception e)
                 {
-                    _party.Seats.Remove(admit.Seat);
+                    if (admit.Created) _party.Seats.Remove(admit.Seat);
+                    else
+                    {
+                        if (admit.NewToken != null) admit.Seat.TokenHash = ""; // stays open
+                        admit.Seat.DisplayName = oldName;
+                    }
                     Log.Error($"{ModEntry.LogTag} could not save party.json: {e}");
-                    return new Refuse("host_error", "The host could not save the new seat. Try again.");
+                    return new Refuse("host_error", "The host could not save your seat. Try again.");
                 }
-                Log.Info($"{ModEntry.LogTag} new seat \"{admit.Seat.SeatId}\" = player {admit.Seat.PlayerId} from {from}");
+            }
+            if (renamed) Log.Info($"{ModEntry.LogTag} seat \"{admit.Seat.SeatId}\" is now called \"{newName}\"");
+
+            // Everyone already connected learns the new seat's name or the new name; the joiner gets all names in the welcome.
+            var names = SeatNames.Of(_party);
+            SeatNames.Set(names);
+            Server.Broadcast(new Roster(names));
+
+            if (admit.NewToken != null)
+            {
+                Log.Info(admit.Created
+                    ? $"{ModEntry.LogTag} new seat \"{admit.Seat.SeatId}\" = player {admit.Seat.PlayerId} from {from}"
+                    : $"{ModEntry.LogTag} open seat \"{admit.Seat.SeatId}\" (player {admit.Seat.PlayerId}) claimed with a new token from {from}");
             }
             else
             {
                 Log.Info($"{ModEntry.LogTag} seat \"{admit.Seat.SeatId}\" (player {admit.Seat.PlayerId}) claimed from {from}");
             }
-            return new Welcome(admit.Seat.PlayerId, admit.Seat.SeatId, _party.Name, admit.NewToken, _party.Unlocks, 2);
+            return new Welcome(admit.Seat.PlayerId, admit.Seat.SeatId, _party.Name, admit.NewToken, _party.Unlocks, 2, names);
         }
     }
 
@@ -225,6 +248,7 @@ public sealed class HostSession
         Current = null;
         Server.Dispose();
         SpirePartySession.End();
+        SeatNames.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} host session for \"{_party.Name}\" ended");
     }

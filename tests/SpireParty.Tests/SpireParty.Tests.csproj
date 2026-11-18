@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/SpireParty/SpireParty.csproj" />
     <None Include="../../src/SpireParty/SpireParty.json" Link="SpireParty.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

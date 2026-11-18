@@ -49,7 +49,7 @@ public sealed class ClientSession
     }
 
     /// <summary>Returns an error to show in the Join form, or null once the join is under way.</summary>
-    public static async Task<string?> StartAsync(string address, string seatId, string token, NSubmenuStack stack)
+    public static async Task<string?> StartAsync(string address, string seatId, string token, NSubmenuStack stack, string name = "")
     {
         if (Current != null || SpirePartySession.IsActive) return "A SpireParty session is already running.";
 
@@ -60,19 +60,21 @@ public sealed class ClientSession
 
         var release = ReleaseInfoManager.Instance.ReleaseInfo;
         var hello = new Hello(ModEntry.Version, release?.Version ?? "unknown", release?.Commit ?? "unknown",
-            SeatRules.Normalize(seatId), SeatTokens.Normalize(token));
+            SeatRules.Normalize(seatId), SeatTokens.Normalize(token), SeatNames.Clean(name));
 
         var result = await ControlClient.ConnectAsync(host, port, hello);
         if (result.Client == null)
             return result.Reply is Refuse refuse ? refuse.Reason : result.Error ?? "The host did not answer.";
 
         var welcome = result.Client.Welcome;
-        config.Remember(new RecentHost(host, port, welcome.SeatId));
+        config.Remember(new RecentHost(host, port, welcome.SeatId, SeatNames.Clean(name)));
         try { config.Save(dataDir); } catch (Exception e) { Log.Warn($"{ModEntry.LogTag} could not save config.json: {e.Message}"); }
 
         var session = new ClientSession(result.Client);
         Current = session;
         SpirePartySession.Begin(new SessionContext(SessionRole.Client, welcome.PartyName, null, welcome.SeatId, welcome.PlayerId));
+        SeatNames.Set(welcome.Names ?? new System.Collections.Generic.Dictionary<ulong, string>());
+        result.Client.RosterReceived += roster => SeatNames.Set(roster.Names);
         result.Client.HostLost += reason => MainThread.Post(() => Log.Info($"{ModEntry.LogTag} control channel to host closed: {reason}"));
         Log.Info($"{ModEntry.LogTag} joined party \"{welcome.PartyName}\" as seat \"{welcome.SeatId}\" (player {welcome.PlayerId}); connecting to game on {host}:{port}");
 
@@ -172,6 +174,7 @@ public sealed class ClientSession
         Current = null;
         _control.Dispose();
         SpirePartySession.End();
+        SeatNames.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} client session ended");
     }

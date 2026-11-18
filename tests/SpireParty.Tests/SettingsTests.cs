@@ -72,7 +72,7 @@ public class SettingsTests
         Assert.Equal(0, p.TurnTimerSeconds);
         Assert.Equal(2, p.AfkStrikes);
         Assert.Equal("majority", p.VoteToKick);
-        Assert.Equal("matchLowest", p.CatchUpGold);
+        Assert.Equal("highest", p.CatchUpGold);
         Assert.Equal("matchLowest", p.CatchUpMaxHp);
         Assert.Equal(0, p.CatchUpCardRewards);
         Assert.Equal(SeatRules.FirstGuestPlayerId, p.NextPlayerId);
@@ -91,8 +91,23 @@ public class SettingsTests
         Assert.Equal(0, p.TurnTimerSeconds);
         Assert.Equal("unanimous", p.VoteToKick);
         Assert.Equal(3, p.CatchUpCardRewards);
-        Assert.Equal("matchLowest", p.CatchUpGold);
+        Assert.Equal("highest", p.CatchUpGold);
         Assert.Equal(3, warnings.Count);
+    }
+
+    [Theory]
+    [InlineData("highest", "highest")]
+    [InlineData("Average", "average")]
+    [InlineData("lowest", "lowest")]
+    [InlineData("starter", "starter")]
+    [InlineData("matchLowest", "lowest")]   // M1 name
+    [InlineData("starterOnly", "starter")]  // M1 name
+    public void Party_CatchUpGold_AcceptsEveryChoiceAndM1Names(string stored, string expected)
+    {
+        var p = PartyFile.Parse($$"""{ "catchUp": { "gold": "{{stored}}" } }""", out var warnings);
+        Assert.Equal(expected, p.CatchUpGold);
+        Assert.Empty(warnings);
+        Assert.Equal(expected, PartyFile.Parse(p.ToJson(), out _).CatchUpGold);
     }
 
     [Fact]

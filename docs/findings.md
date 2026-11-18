@@ -436,3 +436,34 @@ The first gate run's hash compare showed `progress.save` written **during** the 
 - **Firewalls:** Windows already had inbound allow rules for the game (added by Steam), and the Tailscale adapter is on the Private profile. On Fedora 44, firewalld manages only the Wi-Fi interface (FedoraWorkstation zone), and the Tailscale interface passed TCP/UDP 33771 with no change.
 - **Tutorials repeat during party runs.** FTUE "seen" flags are profile writes (`ProgressSaveManager.MarkFtueAsComplete` → `SaveProgress`), blocked by the profile guard, so a fresh profile shows its tutorials in every party session. A possible fix that writes nothing: during a session, treat FTUEs as seen (patch the "seen" check), so tutorials don't show at all in party runs.
 - **Fixed 2026-11-17: tutorials hidden during party runs.** `TutorialAdapter` prefixes `ProgressSaveManager.SeenFtue(string)`, the check behind all 17 tutorial call sites, to return true during a session. That is the same answer the game gives when tutorials are turned off, and nothing is written. Verified on the Fedora laptop's fresh profile: no tutorials and no "Player has seen ftue" log lines during the session. One-time menu popups (`SeenPopup`: ascension intros, Blitz/Dread disclaimers) are unchanged.
+
+---
+
+# M2 findings (v0.113.1, d09d48e5)
+
+## New player for a saved run (task 2.1 spike, Windows VM, 2026-11-17)
+
+**Result: a player built by the game's own code can be appended to a saved co-op run, and the party plays on with it.** Tested on a copy of the M1 gate run (2 players, Act 2, ascension 0): seat `newbie` (Silent, player 7000003) was added with the `--spireparty-addseat` dev switch, then host plus two clients loaded it, played a combat and a treasure room. No exceptions and no state divergence in any of the three logs; the next saves carry history for all three players.
+
+Steps (`Core/NewPlayer.cs`):
+
+1. Read the save a second time into a scratch `RunState.FromSerializable`. `FromSerializable` shares the save's history lists, so the caller's copy of the save is never used for this.
+2. `Player.CreateForNewRun(character, unlockState, netId)`: starter deck, starter relics, starting HP and gold.
+3. `RunState.AddPlayerDebug(player, -1)` (a game method meant for debug use): appends the player, sets `RunState`, `InitializeSeed` from the run seed and the new slot index, `AfterCreated` on the starter cards, registers the cards with the run. Outside a live run it skips step 4.
+4. What `RunManager.InitializeNewRun` does per player and `AddPlayerDebug` skips outside a run: `Player.PopulateRelicGrabBagIfNecessary(rng)` and `new AscensionManager(gameMode, level).ApplyEffectsTo(player)` (Tight Belt, Ascender's Bane). The relic bag gets its own RNG (`Rng(hash(seed) ^ netId, "spireparty_new_player")`) instead of the run's `UpFront` stream, so the shared RNG state in the save is unchanged.
+5. `player.ToSerializable()`, append to the save's `Players`, backfill an empty `PlayerMapPointHistoryEntry` on every past floor.
+
+Not done for a joiner, by choice: `ModifierModel.OnRunCreated` and `RunModel.OnRunCreated` (custom-run modifiers and Dread/Blitz run models act at run creation; Dread banes are handled by the catch-up rule). Revisit if party runs get custom modes.
+
+Self-check targets for the roster editor: `RunState.FromSerializable`, `RunState.AddPlayerDebug(Player,int)`, `Player.CreateForNewRun(CharacterModel,UnlockState,ulong)`, `Player.PopulateRelicGrabBagIfNecessary(Rng)`, `AscensionManager.ApplyEffectsTo(Player)`, `Player.ToSerializable()`.
+
+## Fail-closed scan (task 2.3, v0.113.1)
+
+- In the run save JSON, player IDs appear only as `players[i].net_id` and `map_point_history[act][floor].player_stats[i].player_id`, plus `pre_finished_room.extra_rewards` keys when a room has per-player extra rewards. In the game's types, only `SerializablePlayer` (`net_id`), `PlayerMapPointHistoryEntry` (`player_id`) and `NullMultiplayerName` (not in the save) declare such properties.
+- **`map_drawings` is not JSON:** it is a base64 string of gzip-compressed binary (the drawings' `IPacketSerializable` form), so `SerializablePlayerMapDrawings.playerId` is invisible to a JSON scan. It is known and tolerated (save-surgery spike), so the scan leaves it alone. A future field hidden inside a blob like this would not be caught.
+- `Core/SaveScan` walks the save as written by the game's serializer and refuses an edit on any other match: a number, a string, or an object key equal to the player ID.
+
+## Player names (task 2.6, v0.113.1)
+
+- Every player name the game shows (lobby `NRemoteLobbyPlayer`, `NCharacterSelectScreen`, `NMultiplayerLoadGameScreen`, nameplates `NMultiplayerPlayerState`, powers, rest site, error popups) comes from `PlatformUtil.GetPlayerNameRaw(PlatformType, ulong)`, directly or through `PlatformUtil.GetPlayerName` (which escapes BBCode). They call `IPlatformUtilStrategy.GetPlayerName(ulong)` on `NullPlatformUtilStrategy` or `SteamPlatformUtilStrategy`.
+- `NamesAdapter` prefixes all four during a session, with names from party.json sent over the control channel (`welcome.names`, `roster`). Verified in the lobby with three processes.

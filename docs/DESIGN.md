@@ -1,6 +1,6 @@
 # SpireParty — STS2 Multiplayer Mod Design Document
 
-Last updated: 2026-11-16 · Source of truth: the Claude Doc this was exported from.
+Last updated: 2026-11-17 · Source of truth: the Claude Doc this was exported from.
 
 ## Overview and goals
 
@@ -270,9 +270,9 @@ Vanilla forbids this outright: [a replacement player cannot be added midway, and
 
 **Bench and restore (leave).** Benching moves that player's serialized state into `benched/<seat>.json` and removes them from the run. Restoring puts it back unchanged, so a friend who skips a session returns with the same deck, relics, HP and gold. Removing deletes it.
 
-**Add (join).** The new seat picks a character and starts with that character's starter deck and relic, plus one simple catch-up rule: its gold and max HP are raised to match the party member with the least of each. Both are switches in `party.json` (`catchUp.gold`, `catchUp.maxHp`), and `catchUp.cardRewards` (default 0) can grant extra card reward picks if new players turn out too weak.
+**Add (join).** The new seat picks a character and starts with that character's starter deck and relic, plus a simple catch-up rule: its gold is raised to the highest gold in the party, so it can shop for its own deck at the next merchant, and its max HP to the lowest max HP in the party. Both are switches in `party.json` (`catchUp.gold`, `catchUp.maxHp`), and `catchUp.cardRewards` (default 0) can grant extra card reward picks if new players turn out too weak.
 
-In Dread, a new player also starts with the Ascender's Banes the party has collected so far: one, plus one per act already finished.
+In Dread, a new player also starts with the Ascender's Banes the party has collected so far: the one from the ascension level, as at any run start, plus one per act entered after the first (`DreadRunModel.AfterActEntered`).
 
 **At least two active seats.** The game will not resume a saved co-op run with only one player connected (`LoadRunLobby.IsAboutToBeginGame`), so SpireParty refuses any bench or remove that would leave fewer than two active seats, with that reason. A player who wants to continue alone plays single-player instead.
 
@@ -335,7 +335,8 @@ Every choice a group might want differently is a setting with a simple default: 
 | Turn timer | party.json | Off | Off, 30, 45, 60, 90 s |
 | AFK strikes before auto-pass | party.json | 2 | 1 to 5 |
 | Vote to kick | party.json | Majority of the other players | Majority, unanimous, host only |
-| Catch-up gold, max HP | party.json | Match party's lowest | Match lowest, starter only |
+| Catch-up gold | party.json | Party's highest (changed 2026-11-17, user) | Highest, average, lowest, starter only |
+| Catch-up max HP | party.json | Party's lowest | Match lowest, starter only |
 | Catch-up card rewards | party.json | 0 | 0 to 10 |
 | Game port | config.json | UDP 33771 | Any free port |
 | Web port | config.json | TCP 8771 | Any free port |

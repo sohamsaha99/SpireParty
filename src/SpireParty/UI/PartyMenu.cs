@@ -76,7 +76,7 @@ public static class PartyMenu
         var last = config.RecentHosts.FirstOrDefault();
 
         var form = new Form("SpireParty Join");
-        Godot.LineEdit? address = null, seat = null;
+        Godot.LineEdit? address = null, seat = null, name = null;
         if (config.RecentHosts.Count > 1)
         {
             form.AddText("Recent:", 18);
@@ -84,11 +84,13 @@ public static class PartyMenu
             {
                 address!.Text = h.Port == config.GamePort ? h.Address : $"{h.Address}:{h.Port}";
                 seat!.Text = h.SeatId;
+                name!.Text = h.Name;
             }))));
         }
         address = form.AddField("Host address (Tailscale or Meshnet IP or name):",
             last == null ? "" : last.Port == config.GamePort ? last.Address : $"{last.Address}:{last.Port}", "100.x.y.z");
         seat = form.AddField("Seat ID:", last?.SeatId ?? "", "e.g. ravi");
+        name = form.AddField("Your name (optional, shown to the party):", last?.Name ?? "", "e.g. Ravi");
         var token = form.AddField("Token (leave empty the first time you join):", placeholder: "amber-otter-41");
 
         bool busy = false;
@@ -100,7 +102,7 @@ public static class PartyMenu
                 form.SetStatus("Connecting...");
                 try
                 {
-                    string? error = await ClientSession.StartAsync(address.Text, seat.Text, token.Text, stack);
+                    string? error = await ClientSession.StartAsync(address.Text, seat.Text, token.Text, stack, name.Text);
                     if (error == null) form.Close();
                     else form.SetStatus(error);
                 }

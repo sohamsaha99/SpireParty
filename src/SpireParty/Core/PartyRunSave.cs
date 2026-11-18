@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace SpireParty.Core;
 
@@ -32,10 +33,30 @@ public static class PartyRunSave
     /// <summary>Writes atomically and keeps the previous save as run.save.backup.</summary>
     public static Task WriteAsync(string path, SerializableRun save)
     {
-        using var stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, save, JsonSerializationUtility.GetTypeInfo<SerializableRun>());
-        byte[] bytes = stream.ToArray();
+        byte[] bytes = ToBytes(save);
         return Task.Run(() => WriteAtomic(path, bytes));
+    }
+
+    /// <summary>The save as the game's serializer writes it.</summary>
+    public static byte[] ToBytes(SerializableRun save) => Serialize(save, JsonSerializationUtility.GetTypeInfo<SerializableRun>());
+
+    /// <summary>Reads a save from the game's JSON; throws <see cref="InvalidDataException"/> if it cannot.</summary>
+    public static SerializableRun FromBytes(byte[] json) =>
+        JsonSerializer.Deserialize(json, JsonSerializationUtility.GetTypeInfo<SerializableRun>())
+        ?? throw new InvalidDataException("The run save is empty.");
+
+    /// <summary>One player's state, as stored in <c>benched/&lt;seat&gt;.json</c>.</summary>
+    public static byte[] PlayerToBytes(SerializablePlayer player) => Serialize(player, JsonSerializationUtility.GetTypeInfo<SerializablePlayer>());
+
+    public static SerializablePlayer PlayerFromBytes(byte[] json) =>
+        JsonSerializer.Deserialize(json, JsonSerializationUtility.GetTypeInfo<SerializablePlayer>())
+        ?? throw new InvalidDataException("The benched player file is empty.");
+
+    static byte[] Serialize<T>(T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
+    {
+        using var stream = new MemoryStream();
+        JsonSerializer.Serialize(stream, value, info);
+        return stream.ToArray();
     }
 
     public static void Delete(string path)

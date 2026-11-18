@@ -6,16 +6,26 @@ namespace SpireParty.Core;
 /// <summary>What the host knows about itself when judging a hello.</summary>
 public sealed record HostIdentity(string SpirePartyVersion, string GameVersion, string GameCommit);
 
-/// <summary>Live lobby state the decision depends on.</summary>
-public sealed record LobbyState(bool OpenForNewSeats, int PlayerCap, IReadOnlyCollection<string> ConnectedSeatIds);
+/// <summary>
+/// Live lobby state the decision depends on. <paramref name="RunPlayerIds"/> is null when no saved run
+/// is loaded; otherwise only seats whose player is in the saved run may join.
+/// </summary>
+public sealed record LobbyState(bool OpenForNewSeats, int PlayerCap, IReadOnlyCollection<string> ConnectedSeatIds,
+                                IReadOnlyCollection<ulong>? RunPlayerIds = null);
 
 public abstract record HandshakeDecision;
-public sealed record Admit(Seat Seat, string? NewToken) : HandshakeDecision;
+/// <param name="NewToken">Shown once to the joining player: set for a new seat and for a claimed open seat.</param>
+/// <param name="Created">True when this hello created the seat (false for an existing seat, open or not).</param>
+public sealed record Admit(Seat Seat, string? NewToken, bool Created = false) : HandshakeDecision;
 public sealed record Deny(string Code, string Reason) : HandshakeDecision;
 
 /// <summary>
-/// The host's answer to a hello, as a pure function over the in-memory party (it may add a seat).
-/// Every refusal has a code and a readable reason the joining player sees.
+/// The host's answer to a hello, as a pure function over the in-memory party (it may add a seat, or set
+/// the token of an open seat). Every refusal has a code and a readable reason the joining player sees,
+/// and a refusal never changes the party.
+/// <para>An <b>open</b> seat has no token yet (empty <see cref="Seat.TokenHash"/>): seats added in the
+/// roster editor and seats whose token the host reset (DESIGN → Identity, M2 decision D1). The next hello for
+/// it claims it, whatever token was typed, and gets a new token.</para>
 /// </summary>
 public static class HostHandshake
 {
@@ -63,10 +73,11 @@ public static class HostHandshake
             };
             party.Seats.Add(seat);
             limiter.RecordSuccess(address);
-            return new Admit(seat, newToken);
+            return new Admit(seat, newToken, Created: true);
         }
 
-        if (!SeatTokens.Verify(token, seat.TokenHash))
+        bool isOpen = seat.TokenHash.Length == 0;
+        if (!isOpen && !SeatTokens.Verify(token, seat.TokenHash))
         {
             limiter.RecordFailure(address);
             return new Deny("wrong_token", string.IsNullOrWhiteSpace(token)
@@ -78,10 +89,17 @@ public static class HostHandshake
             return new Deny("seat_benched", $"Seat \"{seatId}\" is benched. Ask the host to restore it first.");
         if (seat.State == SeatState.Empty)
             return new Deny("seat_empty", $"Seat \"{seatId}\" was removed from this party.");
+        if (lobby.RunPlayerIds != null && !lobby.RunPlayerIds.Contains(seat.PlayerId))
+            return new Deny("not_in_run",
+                $"Seat \"{seatId}\" is not part of this party's saved run. Ask the host to add it from the Roster screen.");
         if (lobby.ConnectedSeatIds.Contains(seatId))
             return new Deny("seat_in_use", $"Seat \"{seatId}\" is already connected from another game.");
 
         limiter.RecordSuccess(address);
-        return new Admit(seat, null);
+        if (!isOpen) return new Admit(seat, null);
+
+        string token2 = SeatTokens.Generate();
+        seat.TokenHash = SeatTokens.Hash(token2);
+        return new Admit(seat, token2);
     }
 }

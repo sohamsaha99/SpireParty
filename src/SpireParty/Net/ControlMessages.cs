@@ -1,5 +1,8 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -12,11 +15,15 @@ namespace SpireParty.Net;
 /// <summary>Messages on the SpireParty control channel (TCP, game port number).</summary>
 public abstract record ControlMessage;
 
-/// <summary>Client → host, first message. Token is empty when asking for a new seat.</summary>
-public sealed record Hello(string SpirePartyVersion, string GameVersion, string GameCommit, string SeatId, string Token) : ControlMessage;
+/// <summary>Client → host, first message. Token is empty when asking for a new seat. Name is the display name the player typed (empty = keep).</summary>
+public sealed record Hello(string SpirePartyVersion, string GameVersion, string GameCommit, string SeatId, string Token, string Name = "") : ControlMessage;
 
 /// <summary>Host → client. <see cref="NewToken"/> is set only when the seat was just created or its token reset.</summary>
-public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, string? NewToken, string Unlocks, int HeartbeatSeconds) : ControlMessage;
+public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, string? NewToken, string Unlocks, int HeartbeatSeconds,
+                             IReadOnlyDictionary<ulong, string>? Names = null) : ControlMessage;
+
+/// <summary>Host → clients whenever a seat's display name changes: every seat's name, by player ID.</summary>
+public sealed record Roster(IReadOnlyDictionary<ulong, string> Names) : ControlMessage;
 
 /// <summary>Host → client, then the host closes the connection.</summary>
 public sealed record Refuse(string Code, string Reason) : ControlMessage;
@@ -41,13 +48,15 @@ public static class ControlCodec
             Hello h => new JsonObject
             {
                 ["type"] = "hello", ["spireparty"] = h.SpirePartyVersion, ["gameVersion"] = h.GameVersion,
-                ["gameCommit"] = h.GameCommit, ["seatId"] = h.SeatId, ["token"] = h.Token,
+                ["gameCommit"] = h.GameCommit, ["seatId"] = h.SeatId, ["token"] = h.Token, ["name"] = h.Name,
             },
             Welcome w => new JsonObject
             {
                 ["type"] = "welcome", ["playerId"] = w.PlayerId, ["seatId"] = w.SeatId, ["party"] = w.PartyName,
                 ["newToken"] = w.NewToken, ["unlocks"] = w.Unlocks, ["heartbeatSeconds"] = w.HeartbeatSeconds,
+                ["names"] = w.Names == null ? null : EncodeNames(w.Names),
             },
+            Roster r => new JsonObject { ["type"] = "roster", ["names"] = EncodeNames(r.Names) },
             Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
             Heartbeat => new JsonObject { ["type"] = "heartbeat" },
             Bye b => new JsonObject { ["type"] = "bye", ["reason"] = b.Reason },
@@ -79,10 +88,11 @@ public static class ControlCodec
         {
             return Str("type") switch
             {
-                "hello" => new Hello(Str("spireparty"), Str("gameVersion"), Str("gameCommit"), Str("seatId"), Str("token")),
+                "hello" => new Hello(Str("spireparty"), Str("gameVersion"), Str("gameCommit"), Str("seatId"), Str("token"), Str("name")),
                 "welcome" => new Welcome(o["playerId"]!.GetValue<ulong>(), Str("seatId"), Str("party"),
                     o["newToken"] is JsonValue t && t.TryGetValue(out string? nt) ? nt : null,
-                    Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2),
+                    Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2, DecodeNames(o["names"])),
+                "roster" => new Roster(DecodeNames(o["names"]) ?? new Dictionary<ulong, string>()),
                 "refuse" => new Refuse(Str("code"), Str("reason")),
                 "heartbeat" => new Heartbeat(),
                 "bye" => new Bye(Str("reason")),
@@ -93,6 +103,25 @@ public static class ControlCodec
         {
             throw new InvalidDataException($"bad message: {e.Message}");
         }
+    }
+
+    static JsonObject EncodeNames(IReadOnlyDictionary<ulong, string> names)
+    {
+        var o = new JsonObject();
+        foreach (var (id, name) in names.OrderBy(n => n.Key)) o[id.ToString(CultureInfo.InvariantCulture)] = name;
+        return o;
+    }
+
+    /// <summary>Null when the field is missing; entries with a bad key or a non-text value are skipped.</summary>
+    static IReadOnlyDictionary<ulong, string>? DecodeNames(JsonNode? node)
+    {
+        if (node is not JsonObject o) return null;
+        var names = new Dictionary<ulong, string>();
+        foreach (var (key, value) in o)
+            if (ulong.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id)
+                && value is JsonValue v && v.TryGetValue(out string? name))
+                names[id] = name;
+        return names;
     }
 
     public static async Task WriteAsync(Stream stream, ControlMessage message, CancellationToken ct)

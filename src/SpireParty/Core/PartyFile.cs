@@ -37,8 +37,8 @@ public sealed class PartyFile
     public int AfkStrikes { get; set; } = 2;
     /// <summary>"majority", "unanimous" or "hostOnly".</summary>
     public string VoteToKick { get; set; } = "majority";
-    /// <summary>"matchLowest" or "starterOnly".</summary>
-    public string CatchUpGold { get; set; } = "matchLowest";
+    /// <summary>Gold: "highest" (default), "average", "lowest" or "starter". Max HP: "matchLowest" or "starterOnly".</summary>
+    public string CatchUpGold { get; set; } = "highest";
     public string CatchUpMaxHp { get; set; } = "matchLowest";
     public int CatchUpCardRewards { get; set; }
     /// <summary>Next player ID to hand out; only ever increases, so IDs are never reused.</summary>
@@ -67,7 +67,13 @@ public sealed class PartyFile
             p.TurnTimerSeconds = 0;
         }
         var catchUp = j.Section("catchUp");
-        p.CatchUpGold = catchUp.Choice("gold", "matchLowest", "matchLowest", "starterOnly");
+        // "matchLowest" and "starterOnly" are the M1 names for "lowest" and "starter".
+        p.CatchUpGold = catchUp.Choice("gold", "highest", "highest", "average", "lowest", "starter", "matchLowest", "starterOnly") switch
+        {
+            "matchLowest" => "lowest",
+            "starterOnly" => "starter",
+            var g => g,
+        };
         p.CatchUpMaxHp = catchUp.Choice("maxHp", "matchLowest", "matchLowest", "starterOnly");
         p.CatchUpCardRewards = catchUp.Int("cardRewards", 0, 0, 10);
 

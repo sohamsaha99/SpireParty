@@ -22,6 +22,8 @@ public sealed class ControlClient : IDisposable
 
     /// <summary>Reason: "host closed the party", "timeout", "connection lost"...</summary>
     public event Action<string>? HostLost;
+    /// <summary>The host sent new seat names. Raised on a background thread.</summary>
+    public event Action<Roster>? RosterReceived;
 
     public Welcome Welcome { get; }
 
@@ -92,6 +94,11 @@ public sealed class ControlClient : IDisposable
                 if (message == null) { End("connection lost"); return; }
                 Interlocked.Exchange(ref _lastSeenTicks, DateTime.UtcNow.Ticks);
                 if (message is Bye bye) { End(bye.Reason.Length > 0 ? bye.Reason : "host closed the party"); return; }
+                if (message is Roster roster)
+                {
+                    try { RosterReceived?.Invoke(roster); }
+                    catch (Exception e) when (e is not OperationCanceledException) { /* a handler bug must not drop the channel */ }
+                }
             }
         }
         catch (Exception e) when (e is IOException or SocketException or InvalidDataException or OperationCanceledException or ObjectDisposedException)

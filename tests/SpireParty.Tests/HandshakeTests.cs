@@ -16,9 +16,9 @@ public class HandshakeTests
 
     static HandshakeDecision Decide(PartyFile party, string seat, string token = "", bool open = true,
         string version = "0.1.0", string game = "v0.113.1", string commit = "d09d48e5",
-        FailedAttemptLimiter? limiter = null, string[]? connected = null, int cap = 4) =>
+        FailedAttemptLimiter? limiter = null, string[]? connected = null, int cap = 4, ulong[]? run = null) =>
         HostHandshake.Decide(Host, version, game, commit, seat, token, Addr, party,
-            new LobbyState(open, cap, connected ?? Array.Empty<string>()), limiter ?? new FailedAttemptLimiter());
+            new LobbyState(open, cap, connected ?? Array.Empty<string>(), run), limiter ?? new FailedAttemptLimiter());
 
     static string Code(HandshakeDecision d) => Assert.IsType<Deny>(d).Code;
 
@@ -82,5 +82,88 @@ public class HandshakeTests
         Assert.Equal("seat_benched", Code(Decide(party, "ravi", admit.NewToken!)));
         admit.Seat.State = SeatState.Empty;
         Assert.Equal("seat_empty", Code(Decide(party, "ravi", admit.NewToken!)));
+    }
+
+    // ---- open seats (M2 task 2.5, decision D1)
+
+    static PartyFile PartyWithSeat(string tokenHash, SeatState state = SeatState.Active)
+    {
+        var p = NewParty();
+        p.Seats.Add(new Seat { SeatId = "ravi", PlayerId = 7_000_002, TokenHash = tokenHash, State = state });
+        p.NextPlayerId = 7_000_003;
+        return p;
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("whatever-they-typed")]
+    public void OpenSeat_IsClaimedWithANewToken_EvenWhileClosed(string typed)
+    {
+        var party = PartyWithSeat("");
+        var admit = Assert.IsType<Admit>(Decide(party, "ravi", typed, open: false));
+        Assert.False(admit.Created);
+        Assert.Equal(7_000_002UL, admit.Seat.PlayerId);
+        Assert.NotNull(admit.NewToken);
+        Assert.True(SeatTokens.Verify(admit.NewToken, party.Seats[1].TokenHash));
+        Assert.Equal(7_000_003UL, party.NextPlayerId); // no ID handed out
+
+        // Claimed now: the next empty-token hello is refused, the new token works.
+        Assert.Equal("wrong_token", Code(Decide(party, "ravi", "", open: false)));
+        Assert.Null(Assert.IsType<Admit>(Decide(party, "ravi", admit.NewToken!, open: false)).NewToken);
+    }
+
+    [Fact]
+    public void ResetToken_ThenTheOldTokenNoLongerMatters()
+    {
+        var party = PartyWithSeat(SeatTokens.Hash("amber-otter-41"));
+        Assert.True(RosterEdit.ResetToken(party, "RAVI").Ok);
+        Assert.True(RosterEdit.IsOpen(party.Seats[1]));
+        var admit = Assert.IsType<Admit>(Decide(party, "ravi", "amber-otter-41", open: false));
+        Assert.NotNull(admit.NewToken);
+        Assert.NotEqual("amber-otter-41", admit.NewToken);
+    }
+
+    [Fact]
+    public void ResetToken_RefusedForHostRemovedAndUnknownSeats()
+    {
+        var party = PartyWithSeat("x", SeatState.Empty);
+        Assert.Contains("host seat", RosterEdit.ResetToken(party, "host").Refusal);
+        Assert.Contains("removed", RosterEdit.ResetToken(party, "ravi").Refusal);
+        Assert.Contains("no seat", RosterEdit.ResetToken(party, "nobody").Refusal);
+        Assert.False(RosterEdit.IsOpen(party.Seats[0])); // the host seat has no token but is never open
+    }
+
+    [Theory]
+    [InlineData(SeatState.Benched, "seat_benched")]
+    [InlineData(SeatState.Empty, "seat_empty")]
+    public void OpenSeat_BenchedOrRemoved_IsRefusedAndStaysOpen(SeatState state, string code)
+    {
+        var party = PartyWithSeat("", state);
+        Assert.Equal(code, Code(Decide(party, "ravi")));
+        Assert.Equal("", party.Seats[1].TokenHash);
+    }
+
+    [Fact]
+    public void OpenSeat_AlreadyConnected_IsRefusedAndStaysOpen()
+    {
+        var party = PartyWithSeat("");
+        Assert.Equal("seat_in_use", Code(Decide(party, "ravi", connected: new[] { "ravi" })));
+        Assert.Equal("", party.Seats[1].TokenHash);
+    }
+
+    [Fact]
+    public void SavedRun_OnlySeatsInTheRunMayJoin_AndARefusalChangesNothing()
+    {
+        var party = PartyWithSeat(""); // open seat, not in the run
+        Assert.Equal("not_in_run", Code(Decide(party, "ravi", open: false, run: new[] { 1UL })));
+        Assert.Equal("", party.Seats[1].TokenHash);
+
+        Assert.IsType<Admit>(Decide(party, "ravi", open: false, run: new[] { 1UL, 7_000_002UL }));
+    }
+
+    [Fact]
+    public void NewSeat_IsMarkedCreated()
+    {
+        Assert.True(Assert.IsType<Admit>(Decide(NewParty(), "ravi")).Created);
     }
 }

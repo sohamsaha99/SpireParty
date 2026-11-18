@@ -209,6 +209,12 @@ public sealed class ControlServer : IDisposable
         }
     }
 
+    /// <summary>Sends a message to every connected seat, without waiting.</summary>
+    public void Broadcast(ControlMessage message)
+    {
+        foreach (var session in _sessions.Values.ToList()) _ = Send(session, message);
+    }
+
     async Task Send(Session session, ControlMessage message)
     {
         try

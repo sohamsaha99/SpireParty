@@ -37,6 +37,7 @@ public static class ModEntry
         new PeerBindingAdapter(),
         new DevLaunchAdapter(),
         new TutorialAdapter(),
+        new NamesAdapter(),
     };
 
     public static void Init()

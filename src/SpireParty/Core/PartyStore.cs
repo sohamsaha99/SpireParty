@@ -27,6 +27,11 @@ public sealed class PartyStore
     public string PartyDir(string folder) => Path.Combine(_partiesDir, folder);
     public string RunSavePath(string folder) => Path.Combine(PartyDir(folder), RunSaveFileName);
     public string HistoryDir(string folder) => Path.Combine(PartyDir(folder), "history");
+    public string PartyFilePath(string folder) => Path.Combine(PartyDir(folder), PartyFileName);
+    public string BenchedDir(string folder) => Path.Combine(PartyDir(folder), "benched");
+    /// <summary>Seat IDs are validated lower-case names (<see cref="SeatRules.IsValidSeatId"/>), safe as file names.</summary>
+    public string BenchedPath(string folder, string seatId) => Path.Combine(BenchedDir(folder), SeatRules.Normalize(seatId) + ".json");
+    public string BackupsDir(string folder) => Path.Combine(PartyDir(folder), "backups");
 
     public IReadOnlyList<string> List()
     {

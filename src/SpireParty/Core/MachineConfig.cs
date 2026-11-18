@@ -6,7 +6,8 @@ using System.Text.Json.Nodes;
 namespace SpireParty.Core;
 
 /// <summary>A host this machine joined before (shown in the Join menu). Tokens are never stored here.</summary>
-public sealed record RecentHost(string Address, int Port, string SeatId);
+/// <param name="Name">The display name last used with this seat; empty if none.</param>
+public sealed record RecentHost(string Address, int Port, string SeatId, string Name = "");
 
 /// <summary>
 /// Machine settings, <c>user://mods/SpireParty/config.json</c>.
@@ -43,7 +44,7 @@ public sealed class MachineConfig
             var address = h.String("address", "").Trim();
             var seat = h.String("seatId", "").Trim();
             if (address.Length == 0) continue;
-            c.RecentHosts.Add(new RecentHost(address, h.Int("port", DefaultGamePort, 1, 65535), seat));
+            c.RecentHosts.Add(new RecentHost(address, h.Int("port", DefaultGamePort, 1, 65535), seat, h.String("name", "")));
         }
         c.RecentHosts = c.RecentHosts.Take(MaxRecentHosts).ToList();
         warnings = j.Warnings;
@@ -89,6 +90,7 @@ public sealed class MachineConfig
                 ["address"] = h.Address,
                 ["port"] = h.Port,
                 ["seatId"] = h.SeatId,
+                ["name"] = h.Name,
             }).ToArray()),
         };
         return o.ToJsonString(new JsonSerializerOptions { WriteIndented = true });

@@ -23,9 +23,16 @@ public static class SeatRules
     /// <summary>Hands out the next guest player ID and advances the counter; IDs are never reused.</summary>
     public static ulong AllocatePlayerId(PartyFile party)
     {
+        ulong id = PeekPlayerId(party);
+        party.NextPlayerId = id + 1;
+        return id;
+    }
+
+    /// <summary>The ID <see cref="AllocatePlayerId"/> would hand out next, without handing it out.</summary>
+    public static ulong PeekPlayerId(PartyFile party)
+    {
         ulong id = Math.Max(party.NextPlayerId, FirstGuestPlayerId);
         while (party.Seats.Any(s => s.PlayerId == id)) id++;
-        party.NextPlayerId = id + 1;
         return id;
     }
 
