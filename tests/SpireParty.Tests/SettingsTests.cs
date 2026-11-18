@@ -66,12 +66,11 @@ public class SettingsTests
     public void Party_MissingFile_GivesDesignDefaults()
     {
         var p = PartyFile.Parse(null, out var warnings);
-        Assert.Equal(10, p.MaxPlayers);
+        Assert.Equal(8, p.MaxPlayers);
         Assert.Equal("everything", p.Unlocks);
         Assert.Equal(1.0, p.EnemyHealthMultiplier);
         Assert.Equal(0, p.TurnTimerSeconds);
         Assert.Equal(2, p.AfkStrikes);
-        Assert.Equal("majority", p.VoteToKick);
         Assert.Equal("highest", p.CatchUpGold);
         Assert.Equal("matchLowest", p.CatchUpMaxHp);
         Assert.Equal(0, p.CatchUpCardRewards);
@@ -86,10 +85,9 @@ public class SettingsTests
             { "maxPlayers": 12, "enemyHealthMultiplier": 1.5, "turnTimerSeconds": 40,
               "voteToKick": "UNANIMOUS", "catchUp": { "cardRewards": 3, "gold": "lots" } }
             """, out var warnings);
-        Assert.Equal(10, p.MaxPlayers);
+        Assert.Equal(8, p.MaxPlayers);
         Assert.Equal(1.5, p.EnemyHealthMultiplier);
         Assert.Equal(0, p.TurnTimerSeconds);
-        Assert.Equal("unanimous", p.VoteToKick);
         Assert.Equal(3, p.CatchUpCardRewards);
         Assert.Equal("highest", p.CatchUpGold);
         Assert.Equal(3, warnings.Count);

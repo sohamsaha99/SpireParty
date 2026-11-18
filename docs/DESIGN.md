@@ -1,20 +1,20 @@
 # SpireParty — STS2 Multiplayer Mod Design Document
 
-Last updated: 2026-11-17 · Source of truth: the Claude Doc this was exported from.
+Last updated: 2026-11-18 · Source of truth: the Claude Doc this was exported from.
 
 ## Overview and goals
 
-SpireParty is one C# mod for Slay the Spire 2 that lets up to 10 friends play a single co-op run, each either from their own copy of the game or from a browser seat hosted on the host's PC, with the party roster changeable between combats.
+SpireParty is one C# mod for Slay the Spire 2 that lets up to 8 friends play a single co-op run, each either from their own copy of the game or from a browser seat hosted on the host's PC, with the party roster changeable between combats.
 
 The mod has three user-facing goals:
 
 1. **Mixed party, all remote.** Friends join from outside the host's home either with their own copy (plus this mod) or from a browser with nothing installed. Everyone reaches the host through a mesh VPN (Tailscale or NordVPN Meshnet).
-2. **Up to 10 players** in one run, up from the vanilla 4.
+2. **Up to 8 players** in one run, up from the vanilla 4 (lowered from 10 on 2026-11-18 by the user: 8 slots fit in 3 bits, one more than the game's 2-bit slot field, and 8 game processes fit on one PC for testing).
 3. **Join and leave mid-run.** At a safe point the host saves, quits, edits the roster in-game and reloads. Players are identified by party-chosen seat IDs, never by Steam account.
 
 Success criteria for v1:
 
-- A 10-player run reaches the Act 3 boss with at least 2 browser seats and 2 remote native players.
+- An 8-player run reaches the Act 3 boss with at least 2 browser seats and 2 remote native players.
 - One player leaves and one new player joins during that run without corrupting the save.
 - A native friend installs exactly one mod; a browser friend installs nothing.
 
@@ -25,15 +25,15 @@ v1 ships the smallest version of each goal that a group of friends can actually 
 | Area | In v1 | Deferred or excluded |
 | --- | --- | --- |
 | Networking | Direct connect (game's ENet transport) over the mesh VPN | Steam lobbies and invites for SpireParty runs; public-internet hosting; mixing Steam and direct-connect players in one run |
-| Player count | Cap raised to 10; layouts fixed for 5 to 10 | Above 10 |
-| Pacing and AFK | Optional turn timer; waiting-on list and nudge; AFK auto-pass; browser-seat handoff; vote to kick; rewind and bench | Another player playing an AFK native seat's cards; vote timer, unless the game's vote code allows it |
+| Player count | Cap raised to 8; layouts fixed for 5 to 8 | Above 8 |
+| Pacing and AFK | In combat: optional turn timer and AFK auto-pass. Anywhere: the host benches a stuck player through the roster editor. Browser-seat handoff (M4) | Waiting-on list and nudge (the game already shows who has not ended their turn); vote to kick; AFK handling outside combat (events, shops, votes, rewards); another player playing an AFK native seat's cards; vote timer |
 | Saves and progress | Party saves in SpireParty's own folder; profile saves and progress never touched | Steam Cloud sync of party saves |
 | Game modes | Standard, every ascension level, custom, daily, Blitz and Dread | Daily leaderboard submission; achievements from party runs |
 | Browser seats | Video streaming of a seat instance to a desktop browser, mouse and keyboard | Scene-sync renderer (CouchCoop style); phone touch UI; audio |
 | Roster | Join, leave, bench and restore at safe points via save, quit, reload | Live join during combat or mid-event |
 | Identity | Party-chosen seat IDs; one roster per run | Accounts, passwords, cross-run player profiles |
 | Host platform | Windows and Linux hosts and clients, one build | macOS (code kept portable, untested) |
-| Balance | Verify enemy scaling is sane at 10; one tunable multiplier | Full rebalance of multiplayer cards and events |
+| Balance | Verify enemy scaling is sane at 8; one tunable multiplier | Full rebalance of multiplayer cards and events |
 
 ## Constraints and assumptions
 
@@ -57,7 +57,7 @@ flowchart LR
   BF["Browser friend<br/>nothing installed<br/>claims a seat with a token"]
   subgraph HOST["Host PC"]
     HG["Host game + SpireParty<br/>owns the run, lobby and roster editor<br/>web lobby server for browser seats<br/>handshake and seat tokens"]
-    SP["Seat processes, up to 9<br/>one per browser friend<br/>isolated profile each"]
+    SP["Seat processes, up to 7<br/>one per browser friend<br/>isolated profile each"]
     PS[("Party store<br/>party.json, run.save<br/>benched, backups")]
   end
   NF -- "ENet UDP 33771 (mesh VPN)" --> HG
@@ -113,7 +113,9 @@ In vanilla multiplayer the save keys each player by a numeric ID that comes from
 
 ## Turn timer and AFK protection
 
-An optional per-turn timer (45 seconds by default when switched on) ends a slow player's turn for them, and a short ladder of AFK tools handles anyone who stays stuck, from automatic passing up to a party vote to kick.
+An optional per-turn timer in combat (45 seconds by default when switched on) ends a slow player's turn for them, and a seat that keeps timing out passes its turns automatically; anywhere else, the host benches a stuck player through the roster editor.
+
+AFK handling is deliberately simple (decided 2026-11-18 by the user): an absent player is only costly mid-combat, where everyone else waits on every turn. Outside combat the party notices who is missing and the host benches them.
 
 **Design rule: no forged actions in v1.** Every timer and AFK effect is either a normal action taken by the stuck player's own game (pressing End Turn, skipping a reward) or a roster change through flows SpireParty already has. The host never submits actions on another player's behalf. That keeps the game's own action sync untouched, so these features cannot cause a desync.
 
@@ -122,24 +124,21 @@ An optional per-turn timer (45 seconds by default when switched on) ends a slow 
 - Host setting per party: off (default), 30, 45, 60 or 90 seconds.
 - Starts when a player can act, after enemy-turn animations finish; shown as a ring on the End Turn button, with a warning at 10 seconds.
 - At zero, that player's own client presses End Turn. Cards already played stay played.
+- If a mandatory choice is open at zero (a card's or relic's selection screen), the timer waits for the player to make it and ends the turn right after.
 - The host can pause the timer for everyone, for example while someone steps away briefly.
 
-**AFK ladder.** Each step is cheap because it reuses something already in the design.
+**AFK tools.** Each step is cheap because it reuses something already in the design.
 
 | Step | Trigger | What happens | Effort |
 | --- | --- | --- | --- |
-| 1. Waiting-on list and nudge | Always on | Shows who has not ended their turn or voted; any player can nudge, which flashes and sounds on that player's screen | Low |
-| 2. Turn timer | Timer reaches zero | Player's own client ends the turn | Low |
-| 3. AFK auto-pass | 2 timed-out turns in a row | Seat marked AFK: its turns end at once instead of after 45 seconds, and its rewards are skipped; any input from the player clears the mark | Low |
-| 4. Browser-seat handoff | Host action | Host resets a browser seat's token so another friend can take over that seat immediately; the seat process keeps running, so nothing is lost | Low |
-| 5. Vote to kick | Majority of other players, or host alone | Seat stays in AFK auto-pass until the next safe point, then is benched automatically through the normal roster flow | Medium |
-| 6. Rewind and bench | Host action, for a frozen or disconnected game | Host reloads the last autosave, benches the stuck seat, and the party replays the current room without them | Medium |
+| 1. Turn timer | Timer reaches zero | Player's own client ends the turn | Low |
+| 2. AFK auto-pass (combat only) | 2 timed-out turns in a row (`afkStrikes`) | Seat marked AFK: its turns end at once instead of after the timer; any input from the player clears the mark | Low |
+| 3. Browser-seat handoff (M4) | Host action | Host resets a browser seat's token so another friend can take over that seat immediately; the seat process keeps running, so nothing is lost | Low |
+| 4. Bench | Host action, any time | **Edit roster** in the pause menu: Save and Quit, bench the seat, Continue. The party replays the current room without them. Also the answer to a frozen or disconnected game | Done in M2 |
 
-**What steps 2 and 3 cannot fix.** They rely on the stuck player's game still running. If that game has frozen or dropped off the network, step 6 is the fallback: the party loses progress in the current room but is never stuck. A heartbeat in the SpireParty handshake channel tells the host which case it is.
+**Outside combat.** Map votes, shared events, treasure, rest sites and rewards wait for every player, with no timeout in the game. SpireParty adds nothing there: the party sees who is missing and the host uses step 4.
 
-**Deferred.** Letting the host or another native player play an AFK native seat's cards needs the host to submit that player's actions. DirectConnectIP shows it can be done, through its [offline player takeover](https://github.com/TasteSteak/sts2-DirectConnectIP-Mods/blob/master/README.md), but it is the one AFK feature that touches action sync, so it waits until after v1.
-
-**Shared choices.** Map votes and other party-wide choices also wait for everyone. In v1, steps 1, 3 and 5 cover them; a vote timer that settles a vote without the missing players is added only if the game's vote code allows it (see open questions).
+**Deferred.** A waiting-on list, nudge, vote to kick, AFK seats answering votes or skipping rewards, and a vote timer. Letting the host or another native player play an AFK native seat's cards needs the host to submit that player's actions. DirectConnectIP shows it can be done, through its [offline player takeover](https://github.com/TasteSteak/sts2-DirectConnectIP-Mods/blob/master/README.md), but it touches action sync, so it waits until after v1.
 
 ## Saves, progression and game modes
 
@@ -191,25 +190,25 @@ The setting must be identical on every client, so the host sends it in the hands
 
 Mega Crit says [Blitz and Dread work in both single-player and multiplayer](https://apollotrail.com/blog/slay-the-spire-2-blitz-dread-modes-explained), but both are on the [public-beta branch only (v0.113.0)](https://insider-gaming.com/slay-the-spire-2-new-character-modes/) for now. SpireParty ships one build per branch in the same download and loads the one that matches, as [CouchCoop does](https://github.com/tfoxy/sts2-couch-coop/releases/tag/v0.4.1). Every player must be on the same branch.
 
-## Ten-player support
+## Eight-player support
 
-Raising the cap to 10 is a one-line change; the real work is every screen and formula that assumed at most 4 players.
+Raising the cap to 8 is mostly a constant change plus a wider lobby wire format; the real work is every screen and formula that assumed at most 4 players.
 
-RemoveMultiplayerPlayerLimit is the reference. It supports [8 players by default and up to 16, with rendering errors and UI issues possible above 8](https://www.nexusmods.com/slaythespire2/mods/21), and it already reworks the [campfire into rows, the shop into a grid and the treasure room relics into two rows](https://gitee.com/ShayLee141/sts2-RMP-Mods). SpireParty vendors that logic and targets exactly 10.
+RemoveMultiplayerPlayerLimit is the reference. It supports [8 players by default and up to 16, with rendering errors and UI issues possible above 8](https://www.nexusmods.com/slaythespire2/mods/21), and it already reworks the [campfire into rows, the shop into a grid and the treasure room relics into two rows](https://gitee.com/ShayLee141/sts2-RMP-Mods). SpireParty reuses that logic (the user agreed 2026-11-18; each piece is read and understood before it is reused, and credited) and targets exactly 8, the count RMP promises to work cleanly.
 
 | Screen or system | Work needed | Source |
 | --- | --- | --- |
-| Lobby and run start | Raise cap to 10 | Vendored from RMP |
-| Campfire, shop, treasure | Row and grid layouts | Vendored from RMP |
-| Combat | Fit 10 player characters and their health bars; two ranks or scaled sprites | New; RMP only promises 8 cleanly |
-| Player info panels | Compact list or two columns for 10 | New |
-| Map voting | Readable markers for 10 voters | New, verify first |
-| Ally-targeting cards and potions | Target picker usable with 10 allies | New, verify first |
-| End-of-run screen | Fit 10 summaries | New, verify first |
+| Lobby and run start | Raise cap to 8; widen the slot field to 3 bits and the lobby player lists to 4 | From RMP where it fits, else new |
+| Campfire, shop, treasure | Row and grid layouts | From RMP |
+| Combat | Fit 8 player characters and their health bars | From RMP, then check |
+| Player info panels | Compact list or two columns for 8 | New, verify first |
+| Map voting | Readable markers for 8 voters | New, verify first |
+| Ally-targeting cards and potions | Target picker usable with 8 allies | New, verify first |
+| End-of-run screen | Fit 8 summaries | New, verify first |
 
-**Balance.** Enemy health in vanilla [scales with party size](https://slay-the-spire-2.pages.dev/guides/multiplayer-faq/). Before changing anything, read the formula in the decompiled code and chart it for 1 to 10 players. Ship one host setting, an enemy health multiplier, rather than a rebalance.
+**Balance.** Enemy health in vanilla [scales with party size](https://slay-the-spire-2.pages.dev/guides/multiplayer-faq/). Before changing anything, read the formula in the decompiled code and chart it for 1 to 8 players. Ship one host setting, an enemy health multiplier, rather than a rebalance. Enemy HP is computed on every peer, so the host sends the multiplier to every client.
 
-**Pacing.** Turns are simultaneous, so a 10-player turn ends when the slowest player ends theirs. The optional turn timer and AFK tools (see Turn timer and AFK protection) keep one slow or absent player from stalling the other nine.
+**Pacing.** Turns are simultaneous, so an 8-player turn ends when the slowest player ends theirs. The optional turn timer and AFK auto-pass (see Turn timer and AFK protection) keep one slow or absent player from stalling the other seven.
 
 ## Host seats and web client
 
@@ -223,16 +222,16 @@ CouchCoop proves the process model: [the host launches a separate copy of the ga
 - skips menus and connects to 127.0.0.1 as that seat;
 - renders at 1280x720, capped at 30 fps, with audio muted;
 - runs a small capture loop that reads the game's own viewport image and hands frames to the encoder;
-- turns browser input into the game's own input events in-process, so 9 seats never fight over one OS cursor.
+- turns browser input into the game's own input events in-process, so 7 seats never fight over one OS cursor.
 
 **Streaming, in two steps.**
 
 1. *MVP:* JPEG frames over a WebSocket, encoded with Godot's built-in JPEG encoder so no native libraries are needed, sent only when the frame changed, plus input messages back. Simple to build and debug; expect a few megabytes per second per seat.
-2. *Target:* WebRTC video (VP8 or H.264) with a data channel for input, using a managed C# WebRTC library bundled in the mod folder. Roughly 2 to 3 Mbit/s per seat; needed if the host's upload cannot carry the MVP for 9 seats.
+2. *Target:* WebRTC video (VP8 or H.264) with a data channel for input, using a managed C# WebRTC library bundled in the mod folder. Roughly 2 to 3 Mbit/s per seat; needed if the host's upload cannot carry the MVP for 7 seats.
 
 **Web lobby.** The host mod embeds a small HTTP and WebSocket server that runs on plain sockets, bound only to the mesh-VPN interface. It avoids Windows' HttpListener, which needs admin rights or a URL reservation to listen on a non-localhost address. It serves one page: party name, list of browser seats, a token box to claim a seat, then the seat view in a canvas that scales to the browser window. Desktop browsers with mouse and keyboard are the target; phones are out of scope.
 
-**To verify early:** how a second game process behaves with Steam on the same account (CouchCoop shows it can be done), and whether reading the viewport every frame costs too much with 9 seats running.
+**To verify early:** how a second game process behaves with Steam on the same account (CouchCoop shows it can be done), and whether reading the viewport every frame costs too much with 7 seats running.
 
 ## Cross-platform design
 
@@ -331,12 +330,11 @@ Every choice a group might want differently is a setting with a simple default: 
 
 | Setting | File | Default | Allowed |
 | --- | --- | --- | --- |
-| Max players | party.json | 10 | 2 to 10 |
+| Max players | party.json | 8 (changed 2026-11-18, user) | 2 to 8 |
 | Unlocks | party.json | Everything unlocked | Everything, mirror host |
 | Enemy health multiplier | party.json | 1.0 | 0.5 to 3.0 |
 | Turn timer | party.json | Off | Off, 30, 45, 60, 90 s |
 | AFK strikes before auto-pass | party.json | 2 | 1 to 5 |
-| Vote to kick | party.json | Majority of the other players | Majority, unanimous, host only |
 | Catch-up gold | party.json | Party's highest (changed 2026-11-17, user) | Highest, average, lowest, starter only |
 | Catch-up max HP | party.json | Party's lowest | Match lowest, starter only |
 | Catch-up card rewards | party.json | 0 | 0 to 10 |
@@ -364,8 +362,8 @@ The biggest risk is not any single feature but game patches breaking networking 
 | Stable and beta branches diverge (Blitz and Dread are beta-only) | High | One build per branch in the same download; handshake refuses mixed branches |
 | A party run leaks a write into the normal profile | Medium | Block profile writes during party runs; test by hashing the profile folders before and after a full party run |
 | Bench or remove leaves dangling player references | Medium | Fail closed (see Join and leave); prototype this first |
-| Desync ("state divergence") with 10 players or after a roster edit | Medium | Roster edits only at safe points; identical mod version enforced by handshake; long soak tests at 10 |
-| 9 rendering seats overload the host | Medium | Measure in milestone 4; lower seat fps and resolution; cap browser seats |
+| Desync ("state divergence") with 8 players or after a roster edit | Medium | Roster edits only at safe points; identical mod version enforced by handshake; party settings that affect gameplay sent by the host; long soak tests at 8 |
+| 7 rendering seats overload the host | Medium | Measure in milestone 4; lower seat fps and resolution; cap browser seats |
 | Host upload too small for JPEG streaming | Medium | Move to WebRTC video |
 | Mega Crit ships official rejoin or larger parties | Low | Welcome it; retire the overlapping part |
 
@@ -393,7 +391,7 @@ The biggest risk is not any single feature but game patches breaking networking 
 | Can a client press its own End Turn from code? | Yes, via the method the button calls | Simulate the button press |
 | When does co-op autosave? | At room entry; reload restarts the room | Rewind to the last safe-point save |
 | What happens on a mid-combat disconnect? | Party can save and quit | Host quits to menu, then rewind and bench |
-| Can a vote settle without a missing player? | No | Nudge, auto-pass and kick cover it |
+| Can a vote settle without a missing player? | No | The host benches the missing player (changed 2026-11-18: nudge, auto-voting and kick deferred) |
 
 ## Milestones
 
@@ -412,8 +410,8 @@ Build in six milestones, starting with a research spike on the riskiest unknown,
 | M1 · Direct connect and seat IDs | ENet host and join menus, TCP control channel for the handshake, tokens and heartbeat; seat IDs replace Steam IDs in saves; party run save redirected to the party folder and profile writes skipped (pulled forward from M2 for hard rule 1). Plan: `docs/MILESTONE-1.md` | Windows: Act 1 with two game processes on the VM over 127.0.0.1 |
 | Fedora checkpoint | Linux load check; deploy script on Linux; ENet over Tailscale; any M0 prototype that needed two machines | Act 1 over Tailscale with each OS as host |
 | M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add, open seats and token reset, display names, the unlock setting; fail-closed scan (the roster check needed no patch). Plan: `docs/MILESTONE-2.md` | Bench, restore and add survive a full act |
-| M3 · Ten players | Cap, layouts, turn timer, AFK tools; enemy health formula charted; multiplier | A 10-player act with no desync, combat readable |
-| M4 · Browser seats | Seat processes, JPEG stream, lobby page; measure host CPU, GPU and upload with 9 seats | 3 browser seats play an act beside native friends |
+| M3 · Eight players | Cap, layouts, turn timer and combat AFK auto-pass; enemy health formula charted; multiplier; game modes (Daily, Custom, Blitz, Dread) in party runs; automated test harness. Plan: `docs/MILESTONE-3.md` | An 8-player act with no desync, combat readable |
+| M4 · Browser seats | Seat processes, JPEG stream, lobby page; measure host CPU, GPU and upload with 7 seats | 3 browser seats play an act beside native friends |
 | M5 · Release | WebRTC if upload demands it; startup self-check; Workshop item and zip; third-party notices | All v1 success criteria met |
 
 M3 and M4 do not depend on each other and can run in parallel once M2's gate is passed.

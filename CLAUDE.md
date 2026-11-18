@@ -1,6 +1,6 @@
 # SpireParty — agent brief
 
-SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 10 friends play one co-op run, each from their own copy of the game or from a browser seat hosted on the host's PC, with join/leave between encounters and saves that are never tied to a Steam account.
+SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 8 friends play one co-op run, each from their own copy of the game or from a browser seat hosted on the host's PC, with join/leave between encounters and saves that are never tied to a Steam account.
 
 **The spec is `docs/DESIGN.md`. Read it before writing code.** When this file and the design disagree, ask the user. Start work with `docs/MILESTONE-0.md`.
 
@@ -54,10 +54,11 @@ src/SpireParty/
   Web/                       HTTP + WebSocket server on plain sockets, static file serving from web/
   Platform/                  the ONLY place with OS-specific code
   GameAdapters/              one class per Harmony patch site, each with a self-check
-  UI/                        menus, roster editor, timer ring, waiting-on list
+  UI/                        menus, roster editor, timer ring
+  Dev/                       test-only dev switches: light client, autopilot, screenshots (inactive without a switch)
 web/                         lobby page and seat viewer (plain HTML/JS, no build step)
 tests/SpireParty.Tests/      unit tests for pure logic (no game needed)
-tools/                       deploy.ps1, deploy.sh, helper scripts
+tools/                       deploy.ps1, deploy.sh, party-test.ps1, check-logs.ps1, helper scripts
 docs/                        DESIGN.md, MILESTONE-0.md, findings.md, game-version.md
 decompiled/                  decompiled game code — GITIGNORED, never committed
 ```

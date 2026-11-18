@@ -38,6 +38,7 @@ public sealed class DevLaunchAdapter : GameAdapter
     static void Postfix(NMainMenu __instance)
     {
         if (_done) return;
+        Dev.DevSwitches.StartAll();
         bool host = CommandLineHelper.TryGetValue("spireparty-host", out string? party) && !string.IsNullOrWhiteSpace(party);
         bool join = CommandLineHelper.TryGetValue("spireparty-join", out string? target) && !string.IsNullOrWhiteSpace(target);
         bool addSeat = CommandLineHelper.TryGetValue("spireparty-addseat", out string? addArgs) && !string.IsNullOrWhiteSpace(addArgs);
@@ -84,6 +85,7 @@ public sealed class DevLaunchAdapter : GameAdapter
         string address = parts[0].Trim();
         string seat = parts.Length > 1 ? parts[1].Trim() : "";
         string token = parts.Length > 2 ? parts[2].Trim() : "";
+        if (token.Length == 0) token = Dev.DevSwitches.ReadTestToken();
         string name = parts.Length > 3 ? parts[3].Trim() : "";
         _ = JoinAsync(address, seat, token, name, stack);
     }

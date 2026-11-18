@@ -222,7 +222,7 @@ public class RosterEditTests
     [Fact]
     public void Cap_IsTheGameLimitUntilM3()
     {
-        Assert.Equal(4, RosterEdit.Cap(new PartyFile { MaxPlayers = 10 }));
+        Assert.Equal(4, RosterEdit.Cap(new PartyFile { MaxPlayers = 8 }));
         Assert.Equal(3, RosterEdit.Cap(new PartyFile { MaxPlayers = 3 }));
     }
 

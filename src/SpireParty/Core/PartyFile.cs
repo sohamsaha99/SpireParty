@@ -28,15 +28,13 @@ public sealed class Seat
 public sealed class PartyFile
 {
     public string Name { get; set; } = "";
-    public int MaxPlayers { get; set; } = 10;
+    public int MaxPlayers { get; set; } = 8;
     /// <summary>"everything" or "mirrorHost".</summary>
     public string Unlocks { get; set; } = "everything";
     public double EnemyHealthMultiplier { get; set; } = 1.0;
     /// <summary>0 = off; otherwise 30, 45, 60 or 90 seconds.</summary>
     public int TurnTimerSeconds { get; set; }
     public int AfkStrikes { get; set; } = 2;
-    /// <summary>"majority", "unanimous" or "hostOnly".</summary>
-    public string VoteToKick { get; set; } = "majority";
     /// <summary>Gold: "highest" (default), "average", "lowest" or "starter". Max HP: "matchLowest" or "starterOnly".</summary>
     public string CatchUpGold { get; set; } = "highest";
     public string CatchUpMaxHp { get; set; } = "matchLowest";
@@ -53,12 +51,11 @@ public sealed class PartyFile
         var p = new PartyFile
         {
             Name = j.String("name", ""),
-            MaxPlayers = j.Int("maxPlayers", 10, 2, 10),
+            MaxPlayers = j.Int("maxPlayers", 8, 2, 8),
             Unlocks = j.Choice("unlocks", "everything", "everything", "mirrorHost"),
             EnemyHealthMultiplier = j.Double("enemyHealthMultiplier", 1.0, 0.5, 3.0),
             TurnTimerSeconds = j.Int("turnTimerSeconds", 0),
             AfkStrikes = j.Int("afkStrikes", 2, 1, 5),
-            VoteToKick = j.Choice("voteToKick", "majority", "majority", "unanimous", "hostOnly"),
             NextPlayerId = j.ULong("nextPlayerId", SeatRules.FirstGuestPlayerId, SeatRules.FirstGuestPlayerId),
         };
         if (!TimerChoices.Contains(p.TurnTimerSeconds))
@@ -127,7 +124,6 @@ public sealed class PartyFile
             ["enemyHealthMultiplier"] = EnemyHealthMultiplier,
             ["turnTimerSeconds"] = TurnTimerSeconds,
             ["afkStrikes"] = AfkStrikes,
-            ["voteToKick"] = VoteToKick,
             ["catchUp"] = new JsonObject
             {
                 ["gold"] = CatchUpGold,

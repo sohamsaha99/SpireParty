@@ -129,7 +129,7 @@ public sealed class ClientSession
             // Only now is the game connected; from here on, a disconnect ends the session.
             _netService = joinFlow.NetService;
             MainThread.EveryFrame += CheckStillRunning;
-            if (welcome.NewToken != null) ShowNewToken(welcome);
+            if (welcome.NewToken != null && !Dev.DevSwitches.SaveTestToken(welcome.SeatId, welcome.NewToken)) ShowNewToken(welcome);
         }
         catch (OperationCanceledException)
         {
