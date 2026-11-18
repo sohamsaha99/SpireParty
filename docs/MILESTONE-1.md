@@ -24,7 +24,7 @@
 
 ## Tasks
 
-Status 2026-11-17: 1.1–1.10 implemented (commits `e52e9ea`, `11a9ed3`, `b01608d` and the gate-prep commit). The gate test below is next.
+Status 2026-11-17: 1.1–1.10 implemented (commits `605a265`, `5482010`, `45723fd` and the gate-prep commit). The gate test below is next.
 
 ### 1.1 Adapter framework and session state
 - [x] `GameAdapters/` base with `SelfCheck()` and `Apply(Harmony)`; `AdapterRegistry` applies only adapters whose features can fully work and builds one readable message.
@@ -128,8 +128,8 @@ Game v0.113.1 (d09d48e5), Steam build 26660232, SpireParty 0.0.1. The user did t
 | `dotnet test` | Pass (64) |
 
 **Profile guard, three runs:**
-1. Run 1 leaked `progress.save` (tutorial flags through `ProgressSaveManager.MarkFtueAsComplete`) and `replays/latest.mcr` into the modded profile during the session. Fixed in `35c0c97`.
-2. Re-check 1 (Steam game as client): `progress.save` clean; one final replay was written just after the session ended. Fixed in `5c32e23`.
+1. Run 1 leaked `progress.save` (tutorial flags through `ProgressSaveManager.MarkFtueAsComplete`) and `replays/latest.mcr` into the modded profile during the session. Fixed in `8efa79a`.
+2. Re-check 1 (Steam game as client): `progress.save` clean; one final replay was written just after the session ended. Fixed in `e6f028c`.
 3. Re-check 2 (Steam game as host): **no changes in any profile folder.**
 
 **Notes from the gate**
