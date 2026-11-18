@@ -75,6 +75,8 @@ public sealed class ClientSession
         SpirePartySession.Begin(new SessionContext(SessionRole.Client, welcome.PartyName, null, welcome.SeatId, welcome.PlayerId));
         SeatNames.Set(welcome.Names ?? new System.Collections.Generic.Dictionary<ulong, string>());
         result.Client.RosterReceived += roster => SeatNames.Set(roster.Names);
+        PartyUnlocks.Set(PartyUnlocks.ForClient(welcome.Unlocks, welcome.HostUnlocks, welcome.HostMaxStandardAscension, welcome.HostMaxBlitzAscension));
+        Log.Info($"{ModEntry.LogTag} unlocks: {PartyUnlocks.Current!.Mode}, max ascension {PartyUnlocks.Current.MaxStandardAscension} (Blitz {PartyUnlocks.Current.MaxBlitzAscension})");
         result.Client.HostLost += reason => MainThread.Post(() => Log.Info($"{ModEntry.LogTag} control channel to host closed: {reason}"));
         Log.Info($"{ModEntry.LogTag} joined party \"{welcome.PartyName}\" as seat \"{welcome.SeatId}\" (player {welcome.PlayerId}); connecting to game on {host}:{port}");
 
@@ -175,6 +177,7 @@ public sealed class ClientSession
         _control.Dispose();
         SpirePartySession.End();
         SeatNames.Clear();
+        PartyUnlocks.Set(null);
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} client session ended");
     }

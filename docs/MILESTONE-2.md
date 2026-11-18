@@ -80,10 +80,11 @@ Order: 2.1 first (the one real unknown), then 2.2–2.6 (testable without the ga
 - [x] `NamesAdapter`: during a session, `PlatformUtil.GetPlayerNameRaw` and `GetPlayerName`, plus the Steam and Null strategies' `GetPlayerName` (in case the JIT inlines the small wrapper), return the seat's display name. Self-check on all four.
 - [x] Unit tests (cleaning, table, codec, recent hosts). In-game: host plus "Alpha A" and "Bravo B" over the dev switch; the user saw the names in the lobby.
 
-### 2.7 Unlock setting (D5)
-- [ ] Find where each client's `SerializableUnlockState` enters the lobby and where the character picker reads local progress (findings: Unlocks in co-op). `UnlocksAdapter` replaces them during a session: "everything" = all unlocked; "mirrorHost" = the host's modded profile, read only, sent in the welcome.
-- [ ] New players from the editor use the same unlock state.
-- [ ] Self-check; findings entry with patch sites.
+### 2.7 Unlock setting (D5) — done 2026-11-17
+- [x] `UnlocksAdapter` applies `party.json`'s setting during a session on host and clients: the host's lobby player, the client's join request, local unlock lookups (character buttons) and the host's ascension limit. "everything" = every epoch and encounter, ascension 10 (Blitz 5); "mirrorHost" = the host's modded profile, read only, sent in the welcome (control frames raised to 64 KB).
+- [x] The character select screen is built once and reused, and the game only ever unlocks its buttons: every open now sets each button's lock from the current unlocks, so the random button unlocks during a party and everything locks again afterwards (hard rule 8).
+- [x] New players from the editor use the same unlock state (`PartyUnlocks.ForNewPlayer`).
+- [x] Self-check; findings entry with patch sites. Unit tests for the wire format. In-game ("everything", fresh profiles): all characters and random pickable on host and client, host ascension up to 10, and single-player locked again after leaving (user checked). "mirrorHost" is not visibly testable here: every profile on the VM has nothing unlocked.
 
 ### 2.8 Roster editor UI (D2)
 - [ ] Party screen after picking a party: **Continue** (current behaviour), **Roster**, **Backups**, Cancel.

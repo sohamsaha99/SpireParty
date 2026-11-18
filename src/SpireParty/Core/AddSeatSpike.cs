@@ -37,9 +37,7 @@ public static class AddSeatSpike
         ulong netId = RosterEdit.PlayerIdForAdd(run, party, seatId, out string? refusal)
                       ?? throw new InvalidOperationException(refusal);
 
-        // Spike only: the new player gets the host's unlock state (task 2.7 replaces this).
-        var host = run.Players.First(p => p.NetId == SeatRules.HostPlayerId);
-        var unlocks = UnlockState.FromSerializable(host.UnlockState);
+        var unlocks = PartyUnlocks.ForNewPlayer(party);
         var player = NewPlayer.Build(json, character, unlocks, netId, CatchUp.DreadBanes(run));
         CatchUp.Apply(player, run.Players, party.CatchUpGold, party.CatchUpMaxHp);
 

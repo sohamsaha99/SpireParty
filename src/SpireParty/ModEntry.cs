@@ -38,6 +38,7 @@ public static class ModEntry
         new DevLaunchAdapter(),
         new TutorialAdapter(),
         new NamesAdapter(),
+        new UnlocksAdapter(),
     };
 
     public static void Init()

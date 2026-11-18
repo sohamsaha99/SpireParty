@@ -106,3 +106,48 @@ public class NamesTests
         Assert.Equal("", MachineConfig.Parse("""{"recentHosts":[{"address":"a","seatId":"ravi"}]}""", out _).RecentHosts[0].Name);
     }
 }
+
+/// <summary>Unlock setting on the wire (M2 task 2.7). The "everything" state needs the game's model database, so it is checked in-game.</summary>
+public class UnlockWireTests
+{
+    const string HostUnlocks = """{"unlocked_epochs":["NEOW_EPOCH"],"encounters_seen":["ENCOUNTER.JAW_WORM_NORMAL"],"number_of_runs":7}""";
+
+    static ControlMessage RoundTrip(ControlMessage m) => ControlCodec.Decode(ControlCodec.Encode(m).AsSpan(4));
+
+    [Fact]
+    public void Welcome_CarriesHostUnlocksAndLimits()
+    {
+        var w = new Welcome(7_000_002, "ravi", "gate", null, "mirrorHost", 2, null, HostUnlocks, 6, 3);
+        var back = Assert.IsType<Welcome>(RoundTrip(w));
+        Assert.Equal(HostUnlocks, back.HostUnlocks);
+        Assert.Equal(6, back.HostMaxStandardAscension);
+        Assert.Equal(3, back.HostMaxBlitzAscension);
+        Assert.Null(Assert.IsType<Welcome>(RoundTrip(new Welcome(1, "a", "b", null, "everything", 2))).HostUnlocks);
+    }
+
+    [Fact]
+    public void MirrorHost_ClientUsesTheHostsUnlocks()
+    {
+        var p = SpireParty.Core.PartyUnlocks.ForClient("mirrorHost", HostUnlocks, 6, 3);
+        Assert.Equal("mirrorHost", p.Mode);
+        Assert.Equal(new[] { "NEOW_EPOCH" }, p.Unlocks.UnlockedEpochs);
+        Assert.Equal(7, p.Unlocks.NumberOfRuns);
+        Assert.Equal((6, 3), (p.MaxStandardAscension, p.MaxBlitzAscension));
+        var again = SpireParty.Core.PartyUnlocks.FromJson(SpireParty.Core.PartyUnlocks.ToJson(p.Unlocks))!;
+        Assert.Equal(p.Unlocks.UnlockedEpochs, again.UnlockedEpochs);
+        Assert.Equal(p.Unlocks.EncountersSeen, again.EncountersSeen);
+        Assert.Equal(7, again.NumberOfRuns);
+    }
+
+    [Fact]
+    public void UnlockJson_BadInputIsNull()
+    {
+        Assert.Null(SpireParty.Core.PartyUnlocks.FromJson("{not json"));
+    }
+
+    [Fact]
+    public void Everything_RunCountFitsThe16BitLobbyField()
+    {
+        Assert.InRange(SpireParty.Core.PartyUnlocks.EverythingRuns, 1, ushort.MaxValue);
+    }
+}

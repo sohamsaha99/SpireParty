@@ -18,9 +18,14 @@ public abstract record ControlMessage;
 /// <summary>Client → host, first message. Token is empty when asking for a new seat. Name is the display name the player typed (empty = keep).</summary>
 public sealed record Hello(string SpirePartyVersion, string GameVersion, string GameCommit, string SeatId, string Token, string Name = "") : ControlMessage;
 
-/// <summary>Host → client. <see cref="NewToken"/> is set only when the seat was just created or its token reset.</summary>
+/// <summary>
+/// Host → client. <see cref="NewToken"/> is set only when the seat was just created or claimed while open.
+/// <see cref="HostUnlocks"/> (the game's JSON for the host's unlock state) and the host's ascension limits are set
+/// only when <see cref="Unlocks"/> is "mirrorHost".
+/// </summary>
 public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, string? NewToken, string Unlocks, int HeartbeatSeconds,
-                             IReadOnlyDictionary<ulong, string>? Names = null) : ControlMessage;
+                             IReadOnlyDictionary<ulong, string>? Names = null,
+                             string? HostUnlocks = null, int HostMaxStandardAscension = 0, int HostMaxBlitzAscension = 0) : ControlMessage;
 
 /// <summary>Host → clients whenever a seat's display name changes: every seat's name, by player ID.</summary>
 public sealed record Roster(IReadOnlyDictionary<ulong, string> Names) : ControlMessage;
@@ -39,7 +44,8 @@ public sealed record Bye(string Reason) : ControlMessage;
 /// </summary>
 public static class ControlCodec
 {
-    public const int MaxFrameBytes = 16 * 1024;
+    /// <summary>A welcome in mirrorHost mode carries the host's unlock state (a few KB); this leaves ample room.</summary>
+    public const int MaxFrameBytes = 64 * 1024;
 
     public static byte[] Encode(ControlMessage message)
     {
@@ -55,6 +61,8 @@ public static class ControlCodec
                 ["type"] = "welcome", ["playerId"] = w.PlayerId, ["seatId"] = w.SeatId, ["party"] = w.PartyName,
                 ["newToken"] = w.NewToken, ["unlocks"] = w.Unlocks, ["heartbeatSeconds"] = w.HeartbeatSeconds,
                 ["names"] = w.Names == null ? null : EncodeNames(w.Names),
+                ["hostUnlocks"] = w.HostUnlocks, ["hostMaxStandardAscension"] = w.HostMaxStandardAscension,
+                ["hostMaxBlitzAscension"] = w.HostMaxBlitzAscension,
             },
             Roster r => new JsonObject { ["type"] = "roster", ["names"] = EncodeNames(r.Names) },
             Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
@@ -91,7 +99,9 @@ public static class ControlCodec
                 "hello" => new Hello(Str("spireparty"), Str("gameVersion"), Str("gameCommit"), Str("seatId"), Str("token"), Str("name")),
                 "welcome" => new Welcome(o["playerId"]!.GetValue<ulong>(), Str("seatId"), Str("party"),
                     o["newToken"] is JsonValue t && t.TryGetValue(out string? nt) ? nt : null,
-                    Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2, DecodeNames(o["names"])),
+                    Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2, DecodeNames(o["names"]),
+                    o["hostUnlocks"] is JsonValue hu && hu.TryGetValue(out string? hus) ? hus : null,
+                    o["hostMaxStandardAscension"]?.GetValue<int>() ?? 0, o["hostMaxBlitzAscension"]?.GetValue<int>() ?? 0),
                 "roster" => new Roster(DecodeNames(o["names"]) ?? new Dictionary<ulong, string>()),
                 "refuse" => new Refuse(Str("code"), Str("reason")),
                 "heartbeat" => new Heartbeat(),

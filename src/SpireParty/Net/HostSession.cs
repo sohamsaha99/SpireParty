@@ -114,6 +114,8 @@ public sealed class HostSession
         server.SeatLost += (seat, reason) => MainThread.Post(() => session.OnSeatLost(seat, reason));
         Current = session;
         SeatNames.Set(SeatNames.Of(party));
+        PartyUnlocks.Set(PartyUnlocks.ForHost(party));
+        Log.Info($"{ModEntry.LogTag} unlocks: {PartyUnlocks.Current!.Mode}, max ascension {PartyUnlocks.Current.MaxStandardAscension} (Blitz {PartyUnlocks.Current.MaxBlitzAscension})");
         SpirePartySession.Begin(new SessionContext(SessionRole.Host, party.Name, store.PartyDir(folder),
             PartyStore.HostSeatId, SeatRules.HostPlayerId));
         MainThread.EveryFrame += session.CheckStillRunning;
@@ -214,7 +216,12 @@ public sealed class HostSession
             {
                 Log.Info($"{ModEntry.LogTag} seat \"{admit.Seat.SeatId}\" (player {admit.Seat.PlayerId}) claimed from {from}");
             }
-            return new Welcome(admit.Seat.PlayerId, admit.Seat.SeatId, _party.Name, admit.NewToken, _party.Unlocks, 2, names);
+            var unlocks = PartyUnlocks.Current;
+            bool mirror = unlocks?.Mode == PartyUnlocks.MirrorHost;
+            return new Welcome(admit.Seat.PlayerId, admit.Seat.SeatId, _party.Name, admit.NewToken,
+                unlocks?.Mode ?? PartyUnlocks.Everything, 2, names,
+                mirror ? PartyUnlocks.ToJson(unlocks!.Unlocks) : null,
+                mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0);
         }
     }
 
@@ -249,6 +256,7 @@ public sealed class HostSession
         Server.Dispose();
         SpirePartySession.End();
         SeatNames.Clear();
+        PartyUnlocks.Set(null);
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} host session for \"{_party.Name}\" ended");
     }
