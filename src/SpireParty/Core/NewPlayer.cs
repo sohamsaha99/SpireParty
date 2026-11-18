@@ -29,6 +29,23 @@ public static class NewPlayer
             || string.Equals(c.Id.ToString(), n, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>The roster editor's builder (<see cref="PartyEditor.PlayerBuilder"/>): the party's unlocks, the given character.</summary>
+    public static SerializablePlayer ForEditor(string saveJson, string character, PartyFile party, ulong netId, int dreadBanes)
+    {
+        var model = FindCharacter(character) ?? throw new ArgumentException($"Unknown character \"{character}\".");
+        var unlocks = PartyUnlocks.ForNewPlayer(party);
+        if (!unlocks.Characters.Contains(model))
+            throw new ArgumentException($"{model.Title.GetFormattedText()} is locked for this party.");
+        return Build(saveJson, model, unlocks, netId, dreadBanes);
+    }
+
+    /// <summary>Characters a new player may pick in this party.</summary>
+    public static System.Collections.Generic.IReadOnlyList<CharacterModel> Choices(PartyFile party)
+    {
+        var unlocks = PartyUnlocks.ForNewPlayer(party);
+        return ModelDb.AllCharacters.Where(c => unlocks.Characters.Contains(c)).ToList();
+    }
+
     /// <summary>
     /// Returns the new player's serialized state. <paramref name="saveJson"/> is read into a scratch
     /// <see cref="RunState"/> only; the caller's own copy of the save is never touched here.

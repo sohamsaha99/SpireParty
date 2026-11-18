@@ -20,11 +20,17 @@ public static class PartyRunSave
     {
         string? source = File.Exists(path) ? path : File.Exists(path + ".backup") ? path + ".backup" : null;
         if (source == null) return new ReadSaveResult<SerializableRun>(ReadSaveStatus.FileNotFound);
+        // The same deserialization as JsonSerializationUtility.FromJson (which only adds logging through the
+        // engine), so it also works outside the game.
         try
         {
-            return JsonSerializationUtility.FromJson<SerializableRun>(File.ReadAllText(source));
+            return new ReadSaveResult<SerializableRun>(FromBytes(File.ReadAllBytes(source)));
         }
-        catch (Exception e)
+        catch (Exception e) when (e is JsonException or InvalidDataException)
+        {
+            return new ReadSaveResult<SerializableRun>(ReadSaveStatus.JsonParseError, $"{source}: {e.Message}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return new ReadSaveResult<SerializableRun>(ReadSaveStatus.Unrecoverable, $"{source}: {e.Message}");
         }

@@ -86,11 +86,13 @@ Order: 2.1 first (the one real unknown), then 2.2–2.6 (testable without the ga
 - [x] New players from the editor use the same unlock state (`PartyUnlocks.ForNewPlayer`).
 - [x] Self-check; findings entry with patch sites. Unit tests for the wire format. In-game ("everything", fresh profiles): all characters and random pickable on host and client, host ascension up to 10, and single-player locked again after leaving (user checked). "mirrorHost" is not visibly testable here: every profile on the VM has nothing unlocked.
 
-### 2.8 Roster editor UI (D2)
-- [ ] Party screen after picking a party: **Continue** (current behaviour), **Roster**, **Backups**, Cancel.
-- [ ] Roster: one row per seat with ID, name, state (active, benched, removed, open), character, HP and gold from the save; actions Bench, Restore, Remove (confirm), Reset token, Rename; **Add seat** (seat ID, name, character from the game's character list). Every refusal shows its reason.
-- [ ] Without a run in progress the roster only edits `party.json` (rename, reset token, remove an unused seat).
-- [ ] Backups: list with time and roster summary; Restore (confirm).
+### 2.8 Roster editor UI (D2) — done 2026-11-17
+- [x] Party screen after picking a party: **Continue** (current behaviour), **Roster**, **Backups**, Back. Creating a party still goes straight to the lobby.
+- [x] Roster: one row per seat with ID, name, state (active, benched, not in run, open), character, HP and gold (from the save, or the benched file); actions Bench, Restore, Add to run, Remove (confirm), Reset token, Rename; **Add seat** (seat ID, name, character from those the party's unlocks allow). Every refusal shows its reason. Logic in `Core/PartyEditor` (unit-tested with a stand-in player builder); screens in `UI/RosterScreens`.
+- [x] Without a run in progress the roster only edits `party.json` (rename, reset token, remove a seat).
+- [x] Backups: list with time, the edit it preceded and the roster; Restore (confirm), itself undoable.
+- [x] `--spireparty-addseat=<party>,<seat>,<character>` now goes through the editor; the spike class is gone. `PartyRunSave.Read` no longer uses the game's `FromJson` (its error logging needs the engine).
+- In-game (user): bench, refused bench below two players, add with catch-up (99 gold when the party's highest was 95; 109 later), reset token, rename, restore, remove, the 4-player limit refusal. Then host plus three clients claimed their open seats with new tokens, loaded the edited 4-player run and played a room: no exceptions or divergence in any log. Restoring a backup was not exercised in-game (unit-tested).
 
 ### 2.9 Pause-menu entry (D2, may slip)
 - [ ] **Edit roster** in the pause menu for the host during a party session: runs the game's Save and Quit, then opens the editor for that party.

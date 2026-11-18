@@ -16,8 +16,8 @@ namespace SpireParty.GameAdapters;
 /// Developer and test switches, like the game's own --fastmp. Ignored unless passed on the command line:
 ///   --spireparty-host=&lt;party&gt;                     open (or create) a party and host it
 ///   --spireparty-join=&lt;address&gt;,&lt;seat&gt;[,&lt;token&gt;[,&lt;name&gt;]]  join a party
-///   --spireparty-addseat=&lt;party&gt;,&lt;seat&gt;,&lt;character&gt;,&lt;token&gt;  M2 spike: add a new player to the
-///       party's saved run (built by game code), then go on with --spireparty-host if also given
+///   --spireparty-addseat=&lt;party&gt;,&lt;seat&gt;,&lt;character&gt;  add a seat and a new player to the party's saved run
+///       through the roster editor (backed up; the seat is open), then go on with --spireparty-host if also given
 /// Postfix on NMainMenu.CheckCommandLineArgs; runs once per process.
 /// </summary>
 public sealed class DevLaunchAdapter : GameAdapter
@@ -49,7 +49,7 @@ public sealed class DevLaunchAdapter : GameAdapter
         {
             try
             {
-                Log.Info($"{ModEntry.LogTag} dev launch: addseat -> {AddSeatSpike.Run(addArgs!, PlatformInfo.SpirePartyDataDir)}");
+                Log.Info($"{ModEntry.LogTag} dev launch: addseat -> {AddSeat(addArgs!)}");
             }
             catch (Exception e)
             {
@@ -86,6 +86,21 @@ public sealed class DevLaunchAdapter : GameAdapter
         string token = parts.Length > 2 ? parts[2].Trim() : "";
         string name = parts.Length > 3 ? parts[3].Trim() : "";
         _ = JoinAsync(address, seat, token, name, stack);
+    }
+
+    /// <summary>&lt;party&gt;,&lt;seat&gt;,&lt;character&gt; through the roster editor; throws with the refusal.</summary>
+    static string AddSeat(string args)
+    {
+        string[] a = args.Split(',').Select(x => x.Trim()).ToArray();
+        if (a.Length != 3) throw new ArgumentException("--spireparty-addseat=<party>,<seat>,<character>");
+        string dataDir = PlatformInfo.SpirePartyDataDir;
+        var store = new PartyStore(dataDir);
+        var config = MachineConfig.Load(dataDir, out _);
+        var editor = new PartyEditor(store, new PartyBackups(store), SeatRules.PartyFolderName(a[0]), config.BackupsKept);
+        string? error = editor.Add(a[1], a[1], a[2], NewPlayer.ForEditor);
+        if (error != null) throw new InvalidOperationException(error);
+        var seat = editor.Seats(out _).First(s => s.SeatId == SeatRules.Normalize(a[1]));
+        return $"seat \"{seat.SeatId}\" ({seat.Character}): HP {seat.Hp}/{seat.MaxHp}, gold {seat.Gold}, open {seat.Open}";
     }
 
     static async System.Threading.Tasks.Task JoinAsync(string address, string seat, string token, string name, NSubmenuStack stack)

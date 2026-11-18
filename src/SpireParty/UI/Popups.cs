@@ -41,7 +41,7 @@ public sealed class Form
     readonly VBoxContainer _box;
     readonly Label _status;
 
-    public Form(string title)
+    public Form(string title, int width = 620)
     {
         _root = new Control { Name = "SpirePartyForm", MouseFilter = Control.MouseFilterEnum.Stop };
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -55,7 +55,7 @@ public sealed class Form
         center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(center);
 
-        var panel = new PanelContainer { CustomMinimumSize = new Vector2(620, 0) };
+        var panel = new PanelContainer { CustomMinimumSize = new Vector2(width, 0) };
         center.AddChild(panel);
 
         var margin = new MarginContainer();
@@ -125,8 +125,48 @@ public sealed class Form
         }
     }
 
-    public void SetStatus(string? text)
+    /// <summary>One line of text with small buttons on its right (e.g. a seat and its actions).</summary>
+    public void AddRow(string text, params (string Text, Action OnPressed)[] buttons)
     {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        var label = new Label { Text = text, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, ClipText = true };
+        label.AddThemeFontSizeOverride("font_size", 19);
+        row.AddChild(label);
+        foreach (var (buttonText, onPressed) in buttons)
+        {
+            var button = new Button { Text = buttonText, CustomMinimumSize = new Vector2(0, 36) };
+            button.AddThemeFontSizeOverride("font_size", 17);
+            button.Pressed += onPressed;
+            row.AddChild(button);
+        }
+        _box.AddChild(row);
+    }
+
+    /// <summary>A drop-down; returns it so the caller can read <c>Selected</c>.</summary>
+    public OptionButton AddOptions(string label, IEnumerable<string> items, int selected = 0)
+    {
+        AddText(label, 18);
+        var options = new OptionButton { CustomMinimumSize = new Vector2(0, 40) };
+        options.AddThemeFontSizeOverride("font_size", 20);
+        foreach (var item in items) options.AddItem(item);
+        if (options.ItemCount > 0) options.Select(Math.Clamp(selected, 0, options.ItemCount - 1));
+        _box.AddChild(options);
+        return options;
+    }
+
+    /// <summary>"Are you sure?" with a confirm and a cancel button.</summary>
+    public static void Confirm(string title, string body, string confirmText, Action onConfirm)
+    {
+        var form = new Form(title);
+        form.AddText(body);
+        form.AddButtons((confirmText, () => { form.Close(); onConfirm(); }), ("Cancel", form.Close));
+        form.Show();
+    }
+
+    public void SetStatus(string? text, bool error = true)
+    {
+        _status.AddThemeColorOverride("font_color", error ? new Color(1f, 0.55f, 0.45f) : new Color(0.6f, 0.9f, 0.6f));
         _status.Text = text ?? "";
         _status.Visible = !string.IsNullOrEmpty(text);
     }

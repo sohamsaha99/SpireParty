@@ -49,7 +49,7 @@ public static class PartyMenu
         {
             form.AddText("Open a party:", 18);
             form.AddChoiceList(parties.Select(p => ($"{p}{(PartyRunSave.Exists(store.RunSavePath(p)) ? "   (run in progress)" : "")}",
-                (Action)(() => Open(p)))));
+                (Action)(() => { form.Close(); RosterScreens.OpenParty(p, stack); }))));
         }
         var name = form.AddField("Or create a new party:", placeholder: "e.g. thursday-crew");
         form.AddButtons(
