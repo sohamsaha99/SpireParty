@@ -53,7 +53,7 @@ As much as possible runs without you. You do what only a person can: judge reada
 
 ## Tasks
 
-Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decides 3.3–3.4), then 3.3–3.9, with 3.10 growing as features land.
+Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decides 3.3–3.4), then 3.3–3.9. Added by the user on 2026-11-18: 3.12 (divergence diagnostics), 3.13 (refuse joins mid-run), 3.14 (dev tools stay). Remaining order: 3.9, 3.13, 3.12, 3.14, 3.10, 3.15, then the gates.
 
 ### 3.1 Test harness and autopilot — done 2026-11-18 (findings → M3)
 - [x] Light client switch (`--spireparty-light`): window size, `Engine.MaxFps`, audio, set at runtime only.
@@ -111,18 +111,31 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [ ] Daily: no leaderboard upload (M1 guard), the day's seed kept.
 - [ ] Automated: a 5-player autopilot run per mode through a few floors, then a bench and an add, then Continue.
 
+### 3.12 Divergence diagnostics (user, 2026-11-18)
+- [ ] During a SpireParty session, when the game reports a state divergence (`ChecksumTracker`: a `StateDivergenceMessage` received, or a mismatch found as host), add to the game's message: "This happened in a SpireParty run. Please report it to the SpireParty developer and attach: <folder>".
+- [ ] At that moment save `user://mods/SpireParty/diagnostics/<yyyyMMdd-HHmmss>/`: the game log so far, SpireParty and game version/commit, OS, party.json **without token hashes**, the party's run save, the divergence context the game logs (action, checksum id, local and remote values, which peer). Never inside a profile folder (hard rule 1). Keep the newest N (config, default 10).
+- [ ] Unit tests for the bundle writer (token hashes stripped, pruning); in game: force a divergence with a test-only switch and check the message and the folder.
+
+### 3.13 Refuse joins while a run is in progress (user, 2026-11-18)
+- [ ] `HostHandshake.Decide` refuses every hello while the host's run is in progress (`RunManager.IsInProgress`), before any seat is created or claimed, with: "The party is in the middle of a run. Ask the host to use Edit roster (or Save and Quit) to let you in." Today a new seat ID can pass the handshake mid-run in a party that had no saved run at Continue (leaving an unused "not in run" seat in party.json) and the game then refuses with its generic "run in progress".
+- [ ] Unit tests (new seat, known seat, open seat: all refused, party.json unchanged); in game: start a client mid-run and see the reason.
+
+### 3.14 Dev tools stay, inactive (user, 2026-11-18)
+- [ ] The autopilot, light client, screenshots, test enemy HP and the other `--spireparty-*` dev switches stay in the codebase and in every build (so release builds can be tested the same way); they do nothing unless passed on the command line. Document them in one place (`docs/testing.md`: switches, `tools/party-test.ps1`, `tools/check-logs.ps1`, what the autopilot can and cannot do, known pitfalls such as console `kill all`).
+- [ ] The autopilot is the standard way to test future changes: every later milestone's checks start with an automated party run.
+
 ### 3.10 Regression scenarios
 - [ ] Dev switches for the roster flows (`--spireparty-roster=<party>,<bench|restore|add|reset>,<seat>[,<character>]`, replacing `--spireparty-addseat`; Save and Quit after N floors).
 - [ ] Scenarios in `tools/scenarios/`: M2 bench, restore, add, token reset, backup restore; 8 players to the act-1 boss; each mode. Each ends with the log checker and the profile hash compare.
 
-### 3.11 Docs
+### 3.15 Docs (was 3.11; after 3.12–3.14)
 - [ ] `docs/findings.md` → M3 (audit, RMP mapping, health chart, autopilot, resource numbers, modes). `docs/DESIGN.md` updated for anything that changed. `docs/game-version.md` re-checked. `THIRD_PARTY_NOTICES.md` entry for every RMP piece reused.
 
 ## Gate test (Windows VM)
 
 I run every command and the automated scenarios first; they must pass before you are asked to play. Then one session with you. Exact steps come before the gate; the outline:
 
-1. **Automated (no one at the keyboard):** build, `dotnet test`, deploy, profile snapshot. Then the scenarios: 8 autopilot players from a new party to the Act 1 boss; Save and Quit and reload at 8; a ninth client refused; multiplier 0.5 halves enemy HP everywhere; timer and AFK on an idle client; each mode with 5 players plus a roster edit. ✔ The log checker finds nothing in any process; ✔ profile hashes unchanged. I look at every screenshot.
+1. **Automated (no one at the keyboard):** build, `dotnet test`, deploy, profile snapshot. Then the scenarios: 8 autopilot players from a new party to the Act 1 boss; Save and Quit and reload at 8; a ninth client refused; a client started mid-run refused with the SpireParty reason; multiplier 0.5 halves enemy HP everywhere; timer and AFK on an idle client; each mode with 5 players plus a roster edit. ✔ The log checker finds nothing in any process; ✔ profile hashes unchanged. I look at every screenshot.
 2. **With you, 8 players:** host through Steam (you click Play Modded), six autopilot clients, and one client you play, joined through the Join form. Turn timer 30 s. Play through Act 1. ✔ Combat, rest site, treasure, shop, map votes, an ally-targeted potion and the player panels are readable (your call). ✔ Let your timer run out twice: turn ends, then AFK auto-pass; move the mouse, ✔ cleared. ✔ Host pauses the timer; it pauses on every client.
 3. **Stuck player:** I kill one client mid-combat. Host: pause → Edit roster → bench it → Continue. ✔ The room restarts with seven, and its rejoin is refused as benched.
 4. **Finish:** ✔ the log checker and profile hashes clean; vanilla co-op through Steam still caps at 4 and uses the Steam lobby; `dotnet test` passes.
