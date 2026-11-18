@@ -94,8 +94,9 @@ Order: 2.1 first (the one real unknown), then 2.2–2.6 (testable without the ga
 - [x] `--spireparty-addseat=<party>,<seat>,<character>` now goes through the editor; the spike class is gone. `PartyRunSave.Read` no longer uses the game's `FromJson` (its error logging needs the engine).
 - In-game (user): bench, refused bench below two players, add with catch-up (99 gold when the party's highest was 95; 109 later), reset token, rename, restore, remove, the 4-player limit refusal. Then host plus three clients claimed their open seats with new tokens, loaded the edited 4-player run and played a room: no exceptions or divergence in any log. Restoring a backup was not exercised in-game (unit-tested).
 
-### 2.9 Pause-menu entry (D2, may slip)
-- [ ] **Edit roster** in the pause menu for the host during a party session: runs the game's Save and Quit, then opens the editor for that party.
+### 2.9 Pause-menu entry (D2) — done 2026-11-17
+- [x] **Edit roster** in the pause menu for the host during a party session (`PauseMenuAdapter`, a copy of the Save and Quit button): runs the game's Save and Quit (`NPauseMenu.CloseToMenu`), then, once the session has ended and the main menu is up, opens the roster editor for that party. Clients don't get it.
+- In-game (user): button shown on the host only; pressing it saved, quit and opened the roster for "pause29"; the log shows the session ended first.
 
 ### 2.10 Run end after a mid-run add
 - [ ] Verify on a real run (gate step) that the game-over screen, the history record in `parties/<party>/history/` and the run-history screen work with backfilled and benched players. Record in findings.

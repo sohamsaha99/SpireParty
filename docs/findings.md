@@ -475,3 +475,8 @@ Self-check targets for the roster editor: `RunState.FromSerializable`, `RunState
 - **The character select screen is built once** (`NCharacterSelectScreen._Ready` → `InitCharacterButtons`, at the main menu) and reused. On open, `OnSubmenuOpened` only calls `UnlockIfPossible` on locked buttons, which can never unlock the random button (it checks `Characters.Contains(RandomCharacter)`), and nothing ever locks a button again. So the adapter resets every button's lock on each open (postfix): it unlocks random during a party and re-locks after one.
 - **`UnlockState.all` is unsafe on the wire:** it has 999999999 runs, but `SerializableUnlockState.Serialize` writes `number_of_runs` in 16 bits. SpireParty's "everything" uses 1000 runs.
 - **The game's serializer** writes `SerializableUnlockState` as indented JSON (`JsonSerializationUtility.GetTypeInfo<SerializableUnlockState>()`); used to send the host's unlocks in the welcome for mirrorHost.
+
+## Pause menu (task 2.9, v0.113.1)
+
+- `NPauseMenu._Ready` builds the menu from named buttons under `%ButtonContainer` (`Resume`, `Settings`, `Compendium`, `GiveUp`, `Disconnect`, `SaveAndQuit`) and connects them in code. Save and Quit (host and single-player only) calls `CloseToMenu` → `NGame.ReturnToMainMenu`; it does not save, because the run was already saved at room entry or after combat.
+- A copy of the `SaveAndQuit` node made with `Duplicate` without `DuplicateFlags.Signals` works as a new button: its script runs, and code-made connections are not copied. `NGame.Instance.MainMenu` is the main menu once it is the current scene.

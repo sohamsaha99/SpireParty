@@ -39,6 +39,7 @@ public static class ModEntry
         new TutorialAdapter(),
         new NamesAdapter(),
         new UnlocksAdapter(),
+        new PauseMenuAdapter(),
     };
 
     public static void Init()
