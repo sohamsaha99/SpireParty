@@ -160,3 +160,14 @@ Same as the Fedora checkpoint: I copy the DLL to the laptop over Tailscale SSH a
 
 1. **Windows hosts**, the laptop joins as `fedora` plus one Windows client. Bench the laptop's seat, play a room, restore it, add a seat, play several rooms. ✔ No divergence; profile hashes clean on both machines.
 2. **Laptop hosts** (its own roster editor), the VM joins with two clients. Same cycle. ✔ Same checks.
+
+### Result (v0.113.1 on both, identical DLL SHA-256 `369c4014…`, 2026-11-18): passed
+
+| Part | Result |
+| --- | --- |
+| Setup | Same game build and commit on both machines; DLL, manifest and pdb copied to the laptop over Tailscale SSH (nothing installed); profile snapshots (VM 74 files, laptop 16) |
+| 1. Windows hosts (no Steam) | Party `xos1`: laptop joined as `fedora` from the Join form over Tailscale, plus one VM client `win`. Benched fedora → laptop refused with "seat is benched"; `win`'s token reset by the user → reclaimed as an open seat; played a room; restored fedora (same deck, relics, HP, gold), added `win2` (Fool, 132 gold, 77 max HP); four players, several rooms. 158 synced actions, no divergence or exceptions on either machine |
+| 2. Laptop hosts (Steam) | Party `xos2` from the laptop's own menus and roster editor; VM clients `vm1`, `vm2` over Tailscale. Benched vm2 → refused; played a room with vm1; restored vm2, added `vm3` (Necrobinder, 156 gold, 70 max HP); four players played on. No divergence or exceptions; pings 33–47 ms |
+| Profile hashes | Unchanged on both machines |
+
+**Note:** in part 1 the laptop's game first lagged 5–6 s per action ("poor connection") with Tailscale at 3 ms. Its window was hidden behind a Moonlight stream; once visible, the in-game ping dropped from ~2000 ms to ~40 ms (see findings). Part 2 played fewer rooms after the last edit than planned (one room with all four), accepted by the user.
