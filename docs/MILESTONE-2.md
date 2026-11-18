@@ -101,38 +101,41 @@ Order: 2.1 first (the one real unknown), then 2.2–2.6 (testable without the ga
 ### 2.10 Run end after a mid-run add
 - [ ] Verify on a real run (gate step) that the game-over screen, the history record in `parties/<party>/history/` and the run-history screen work with backfilled and benched players. Record in findings.
 
-### 2.11 Docs
-- [ ] `docs/findings.md` → M2 patch sites and findings; `docs/DESIGN.md` updates for any changed choice (roster check not patched, open seats, edits on the save after Save and Quit).
+### 2.11 Docs — done 2026-11-17
+- [x] `docs/findings.md` → M2 findings (new player, scan, names, unlocks, pause menu); `docs/DESIGN.md` updated: roster check not patched, open seats, edits on the save after Save and Quit (any save is between encounters), backups and rename in the host flow, fail-closed scan of the whole save, gold catch-up to the highest, display names. Done 2026-11-17.
 
 ## Gate test (Windows VM)
 
-I run every command (build, deploy, launching the games, killing processes, hashes, logs). You do the clicks and the playing. Clients are started with `--force-steam off --clientId=<n>` and their own `--log-file`, as in M1; the host runs through Steam.
+I run every command (build, deploy, launching the games, killing processes, hashes, logs). You do the clicks and the playing. The host runs with Steam (started by me with `SteamAppId`, so it uses your modded Steam profile); clients run `--force-steam off --clientId=<n>` with their own `--log-file`. Client A joins through the **Join form**; the others through the dev switch.
 
 **Setup**
-1. I build, run `dotnet test`, deploy, and snapshot the profile folders.
+
+1. I close every game, build, run `dotnet test`, deploy, and snapshot the profile folders.
 
 **Play and bench**
 
-2. You: SpireParty Host → create `m2gate`. I start clients A and B; they join as new seats `alpha` and `bravo` with names. ✔ The lobby and nameplates show the names, not player IDs.
-3. Play three or four rooms. Save and Quit.
-4. Host: party `m2gate` → Roster. ✔ Three active seats with HP and gold. Bench **bravo**. ✔ A backup appears. Try to bench **alpha** too. ✔ Refused: fewer than two active seats. Try to bench the host. ✔ Refused.
-5. Continue. I start A; it rejoins. I start B; ✔ "Seat bravo is benched" refusal. Play two rooms with host + alpha. Save and Quit.
+2. You (host): Multiplayer → SpireParty Host → create `m2gate`. You (client A): Multiplayer → SpireParty Join → `127.0.0.1`, seat `alpha`, name `Alpha`, token empty. I start client B as seat `bravo`, name `Bravo`. ✔ Both get a token box. **Paste both tokens into the chat** (I start the rejoins in steps 5 and 7). ✔ The lobby shows Host, Alpha, Bravo.
+3. Pick characters and play three or four rooms. ✔ Nameplates show the names. Then, host: pause → **Edit roster**. ✔ The game returns to the main menu and the roster opens by itself.
+4. Roster: ✔ three active seats with character, HP and gold. **Bench** bravo. ✔ Status line confirms. **Bench** alpha. ✔ Refused: at least 2 players. Back → **Backups**: ✔ one backup, "before: bench bravo".
+5. Party screen → **Continue**. I start A (alpha) and B (bravo), each with its token from step 2. ✔ A rejoins; B gets "Seat "bravo" is benched". Ready (confirm the missing player) and play two rooms with host + Alpha. Pause → **Edit roster**.
 
 **Restore, add, reset**
 
-6. Roster: Restore **bravo**; Add seat **charlie** with a character; Reset token for **alpha**. ✔ charlie's gold and max HP match the party's lowest; alpha and charlie show "open".
-7. Continue. I start A, B and C. alpha (empty token) gets a new token; bravo uses its old token; charlie (empty token) gets its token. ✔ All four in the load lobby; bravo has the same deck, relics, HP and gold as before the bench.
-8. Play through the Act 1 boss with all four. ✔ No state divergence in any log.
+6. Roster: **Restore** bravo. **Add seat** `charlie`, name `Charlie`, any character. ✔ The status line gives Charlie's gold (the party's highest) and max HP (the starter's, or the party's lowest if higher). **Reset token** on alpha. ✔ alpha and charlie show "open".
+7. Continue. I start A (alpha, empty token), B (bravo, its old token) and C (charlie, empty token). ✔ A and C each get a new token box; B joins with its old token. ✔ All four in the load lobby. ✔ Bravo has the same deck, relics, HP and gold as before the bench.
+8. Play through the Act 1 boss with all four. ✔ I find no state divergence or exceptions in any log.
 
 **Backups and run end**
 
-9. Save and Quit. Backups: restore the backup from step 6. ✔ The roster is back to host + alpha (bravo benched). Restore the newest backup again to undo it.
-10. Continue with all four and end the run by losing a fight. ✔ The game-over screen shows all four; a `.run` file appears in `parties/m2gate/history/`; the run-history screen opens it.
+9. Host: pause → Edit roster → Back → **Backups**. **Restore** the one "before: restore bravo". ✔ Roster shows bravo benched and no charlie (and the run as it was then). Back to Backups, **Restore** the newest ("before restoring …"). ✔ Everything is back as after step 8.
+10. Continue with all four, then host: pause → **Give Up** (or lose a fight). ✔ The game-over screen shows all four players. ✔ I find a `.run` file in `parties/m2gate/history/`. Host: main menu → Run History: ✔ it opens that run.
 
 **Finish**
 
-11. I compare the profile hashes. ✔ No run data in any profile folder.
-12. Vanilla Host still opens the Steam lobby. `dotnet test` passes.
+11. I close all games and compare the profile hashes. ✔ No run data in any profile folder (settings files may change from menu use).
+12. Vanilla: I start the game through Steam; you open Multiplayer → the normal **Host**. ✔ The Steam lobby opens; single-player character select shows your own unlocks. Back out. I run `dotnet test`.
+
+Send me both tokens (step 2) and anything that did not show ✔. I read the logs myself.
 
 ## Cross-OS gate
 

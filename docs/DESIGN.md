@@ -102,14 +102,14 @@ In vanilla multiplayer the save keys each player by a numeric ID that comes from
 | Seat ID | `ravi` | Chosen by any party member at first join; unique in the party |
 | Player ID | `7000003` | Assigned by host once, never reused in this party; this is what the save stores |
 | Token | `amber-otter-41` | Shown once to the seat's owner; required to claim the seat again |
-| Display name | Ravi | Shown in game UI |
+| Display name | Ravi | Shown in game UI instead of player IDs; set by the player when joining, or renamed by the host |
 | Kind | native or browser | Browser seats are launched by the host |
 | State | active, benched, empty | Benched seats keep their run state aside (see Join and leave) |
 | Character | Ironclad | Fixed once the seat joins the run |
 
 **Claiming a seat.** The joining client sends seat ID and token in the handshake. The host answers with the seat's player ID, and the client adopts it as its local player ID before the game's lobby join runs. A new seat ID with no token creates a seat, only while the host has the lobby open for new players.
 
-**Lost tokens.** The host can reset a seat's token from the roster screen.
+**Lost tokens.** The host can reset a seat's token from the roster screen. That makes the seat open: the next player to join with its seat ID gets a new token (see Join and leave → Open seats).
 
 ## Turn timer and AFK protection
 
@@ -258,25 +258,27 @@ Most of SpireParty is OS-neutral already. The mod is managed .NET code loaded by
 
 Roster changes happen only at a safe point between encounters, through save, quit, edit, reload, and every edit goes through the game's own save code rather than hand-editing the file.
 
-Vanilla forbids this outright: [a replacement player cannot be added midway, and the party must resume with the original roster](https://sts2db.com/questions/multiplayer/). The game also checks the roster when a saved run is loaded; [Multiplayer Save Slots warns when lobby participants do not match the campaign roster](https://github.com/jadistanbelly/sts2-multiplayer-save-slots). SpireParty patches that check to accept the roster stored in `party.json`.
+Vanilla forbids this outright: [a replacement player cannot be added midway, and the party must resume with the original roster](https://sts2db.com/questions/multiplayer/). The game also checks the roster when a saved run is loaded; [Multiplayer Save Slots warns when lobby participants do not match the campaign roster](https://github.com/jadistanbelly/sts2-multiplayer-save-slots). SpireParty needs no patch for that check: every roster edit writes the new roster into the save itself, so the game's load checks (`LoadRunLobby`, `RunManager.CanonicalizeSave`) pass unchanged, and the handshake refuses benched and removed seats before the game's join (changed in M2).
 
 **Host flow.**
 
-1. At a safe point (the map screen; in Blitz, after an encounter's rewards are taken), the host picks *Edit roster* from the pause menu. The game saves and returns to the main menu.
-2. SpireParty opens the roster editor for that party and copies the save to a timestamped backup first.
-3. The host applies any of: bench a seat, restore a benched seat, add a new seat, remove a seat permanently, reset a token.
-4. SpireParty loads the save into the game's run-state objects, applies the changes using the game's own player creation code, and writes it back with the game's own serializer.
+1. The host picks *Edit roster* from the pause menu, or Save and Quit and then SpireParty Host → the party → Roster. The game never saves mid-combat; it saves at room entry and after each combat, so every save is between encounters. A reload restarts the current room, and a new or restored player simply starts it with the others.
+2. SpireParty opens the roster editor for that party.
+3. The host applies any of: bench a seat, restore a benched seat, add a new seat, remove a seat permanently, reset a token, rename a seat. Each edit is backed up first (`backups/<time>/`), and the Backups screen can restore any backup, itself undoably.
+4. SpireParty edits the save with the game's own serializer and builds new players with the game's own player creation code (findings → M2).
 5. The host reopens the lobby. Seats rejoin by seat ID; the run continues from where it was saved.
 
-**Bench and restore (leave).** Benching moves that player's serialized state into `benched/<seat>.json` and removes them from the run. Restoring puts it back unchanged, so a friend who skips a session returns with the same deck, relics, HP and gold. Removing deletes it.
+**Bench and restore (leave).** Benching moves that player's serialized state into `benched/<seat>.json` and removes them from the run. Restoring puts it back unchanged, so a friend who skips a session returns with the same deck, relics, HP and gold. Removing deletes it. Players are only ever appended to the run, never reordered, and a restored or added player gets an empty history entry for every floor they missed.
 
-**Add (join).** The new seat picks a character and starts with that character's starter deck and relic, plus a simple catch-up rule: its gold is raised to the highest gold in the party, so it can shop for its own deck at the next merchant, and its max HP to the lowest max HP in the party. Both are switches in `party.json` (`catchUp.gold`, `catchUp.maxHp`), and `catchUp.cardRewards` (default 0) can grant extra card reward picks if new players turn out too weak.
+**Open seats.** A seat added in the editor, or one whose token the host reset, has no token yet. The next player to join with that seat ID claims it and is shown a new token, as at a first join (M2 decision D1).
+
+**Add (join).** The new seat picks a character (from those the party's unlock setting allows) and starts with that character's starter deck and relic, plus a simple catch-up rule: its gold is raised to the highest gold in the party, so it can shop for its own deck at the next merchant, and its max HP to the lowest max HP in the party. Both are switches in `party.json` (`catchUp.gold`, `catchUp.maxHp`), and `catchUp.cardRewards` (default 0) can grant extra card reward picks if new players turn out too weak.
 
 In Dread, a new player also starts with the Ascender's Banes the party has collected so far: the one from the ascension level, as at any run start, plus one per act entered after the first (`DreadRunModel.AfterActEntered`).
 
 **At least two active seats.** The game will not resume a saved co-op run with only one player connected (`LoadRunLobby.IsAboutToBeginGame`), so SpireParty refuses any bench or remove that would leave fewer than two active seats, with that reason. A player who wants to continue alone plays single-player instead.
 
-**Fail closed.** Before benching or removing, SpireParty scans the run state for any other reference to that player's ID. If it finds one it does not know how to clean up, it refuses the edit and names it, instead of writing a save that may not load. Backups make every edit reversible.
+**Fail closed.** Before any edit, SpireParty scans the whole save for that player's ID. If it finds one anywhere it does not know how to clean up, it refuses the edit and names the place, instead of writing a save that may not load. It also refuses while the player has unclaimed rewards from the last room. Backups make every edit reversible.
 
 ## Single-mod packaging and code reuse
 
@@ -409,7 +411,7 @@ Build in six milestones, starting with a research spike on the riskiest unknown,
 | M0 · Research spike | Decompile `sts2.dll`; answer the open questions; prototype bench and remove on a copied save | Windows: each open question answered or worked around. Linux items deferred to the Fedora checkpoint |
 | M1 · Direct connect and seat IDs | ENet host and join menus, TCP control channel for the handshake, tokens and heartbeat; seat IDs replace Steam IDs in saves; party run save redirected to the party folder and profile writes skipped (pulled forward from M2 for hard rule 1). Plan: `docs/MILESTONE-1.md` | Windows: Act 1 with two game processes on the VM over 127.0.0.1 |
 | Fedora checkpoint | Linux load check; deploy script on Linux; ENet over Tailscale; any M0 prototype that needed two machines | Act 1 over Tailscale with each OS as host |
-| M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add; roster check patched; fail-closed scan | Bench, restore and add survive a full act |
+| M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add, open seats and token reset, display names, the unlock setting; fail-closed scan (the roster check needed no patch). Plan: `docs/MILESTONE-2.md` | Bench, restore and add survive a full act |
 | M3 · Ten players | Cap, layouts, turn timer, AFK tools; enemy health formula charted; multiplier | A 10-player act with no desync, combat readable |
 | M4 · Browser seats | Seat processes, JPEG stream, lobby page; measure host CPU, GPU and upload with 9 seats | 3 browser seats play an act beside native friends |
 | M5 · Release | WebRTC if upload demands it; startup self-check; Workshop item and zip; third-party notices | All v1 success criteria met |
