@@ -42,6 +42,10 @@ public static class ModEntry
         new PauseMenuAdapter(),
         new WireFormatAdapter(),
         new EnemyHealthAdapter(),
+        new RestSiteAdapter(),
+        new TreasureAdapter(),
+        new CombatLayoutAdapter(),
+        new MerchantLayoutAdapter(),
     };
 
     public static void Init()

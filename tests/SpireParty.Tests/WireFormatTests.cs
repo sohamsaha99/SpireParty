@@ -4,6 +4,7 @@ using Xunit;
 
 namespace SpireParty.Tests;
 
+[Collection("GameIL")]
 public class WireFormatTests
 {
     [Fact]

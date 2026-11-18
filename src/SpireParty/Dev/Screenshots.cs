@@ -42,14 +42,35 @@ public static class Screenshots
         if (overlay != null) return overlay.GetType().Name;
         if (NMapScreen.Instance is { IsOpen: true }) return "map";
         var state = RunManager.Instance?.DebugOnlyGetState();
-        if (state?.CurrentRoom == null) return "menu";
+        if (state?.CurrentRoom == null) return LobbyKey() ?? "menu";
         string room = state.CurrentRoom.RoomType.ToString().ToLowerInvariant();
         if (CombatManager.Instance is { IsInProgress: true }) room += "-combat";
         return $"a{state.CurrentActIndex + 1}f{state.ActFloor}-{room}";
     }
 
+    static ulong _lastTick;
+
+    /// <summary>The visible lobby screen with its player count (a join changes the key), or null.</summary>
+    static string? LobbyKey()
+    {
+        if (Engine.GetMainLoop() is not SceneTree tree) return null;
+        var cs = Find<MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectScreen>(tree.Root);
+        if (cs != null && cs.IsVisibleInTree()) return $"lobby-{cs.Lobby?.Players.Count ?? 0}p";
+        var load = Find<MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NMultiplayerLoadGameScreen>(tree.Root);
+        return load != null && load.IsVisibleInTree() ? "load-lobby" : null;
+    }
+
+    static T? Find<T>(Node n) where T : Node
+    {
+        if (n is T t) return t;
+        foreach (var c in n.GetChildren()) if (Find<T>(c) is { } found) return found;
+        return null;
+    }
+
     static void Tick()
     {
+        if (Time.GetTicksMsec() - _lastTick < 500) return;   // twice a second is enough
+        _lastTick = Time.GetTicksMsec();
         string key;
         try { key = ScreenKey(); } catch { return; }
         double now = Time.GetTicksMsec() / 1000.0;

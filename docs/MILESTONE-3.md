@@ -76,11 +76,11 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] `RosterEdit.GameCap` → 8; the editor and handshake refuse a ninth seat with a reason.
 - [x] Unit tests; automated run: 5 then 8 processes reach the new-run lobby and start; 8 closed and restarted (the run is saved at room entry, same as Save and Quit) all rejoin the load lobby and play on. A real Save and Quit at 8 is in the gate.
 
-### 3.4 Screens for eight
-- [ ] Must fix (audit rows 6–7): rest site seats 5–8 (RMP's approach), treasure holders beyond the largest layout (our own code; check how many layouts the scene has).
-- [ ] Check with screenshots and fix if crowded (rows 10–12): combat, shop (RMP's re-grid if needed), player panels, lobby and load lists, map vote icons, ally targeting, game over.
-- [ ] One adapter per area, only in a session, each with a self-check.
-- [ ] Screenshots at 8 players from autopilot runs; you judge the doubtful ones.
+### 3.4 Screens for eight — done 2026-11-18 (findings → M3; ally targeting and game over left for the gate)
+- [x] Must fix (audit rows 6–7): rest site seats 5–8 (RMP's approach), treasure holders beyond the largest layout (our own code; check how many layouts the scene has).
+- [x] Checked with screenshots: combat (now two rows, players shrunk), shop (RMP's rows), lobby, map, player panels (fine as drawn). Ally targeting and the game-over screen at 8 were not reached by the autopilot: gate items.
+- [x] One adapter per area, only in a session, each with a self-check.
+- [x] Screenshots at 8 players from autopilot runs; you judge the doubtful ones.
 
 ### 3.5 Enemy health
 - [ ] Chart HP for 1–8 players per act (and the act-3 boss) in findings, with block and power scaling noted.

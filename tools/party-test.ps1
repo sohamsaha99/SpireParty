@@ -3,6 +3,7 @@
 # Logs, tokens and screenshots go to spikes/logs/<run>/ (gitignored).
 #
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Autopilot      host + 4 clients, all play themselves
+#   -Shots saves screenshots from the host and client 1 (spikes/logs/<run>/shots-<name>/)
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Manual 1       client 1 is played by a person (no autopilot)
 #   tools/party-test.ps1 -Run smoke5 -Continue                   same party and seats again (rejoin with saved tokens)
 #   tools/party-test.ps1 -Run fast -Clients 4 -Autopilot -EnemyHp 0.1   enemies at 10% HP on every process (short fights)
@@ -75,7 +76,7 @@ function Start-Game([string]$name, [string[]]$extra, [bool]$auto) {
     if (-not $NoLight) { $argv += "--spireparty-light" }
     if ($auto) { $argv += "--spireparty-autopilot" }
     if ($EnemyHp) { $argv += "--spireparty-test-enemyhp=$EnemyHp" }
-    if ($Shots) { $argv += "--spireparty-shots=`"$(Join-Path $runDir "shots-$name")`"" }
+    if ($Shots -and ($name -eq "host" -or $name -eq "c1")) { $argv += "--spireparty-shots=`"$(Join-Path $runDir "shots-$name")`"" }
     $argv += $extra
     $cmd = "`"$exe`" " + ($argv -join " ")
     $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd; CurrentDirectory = $game }

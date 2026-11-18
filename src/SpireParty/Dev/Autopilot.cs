@@ -70,13 +70,16 @@ public static class Autopilot
     };
 
     // Per-room memory so a vote or a room action is sent once.
-    static string _roomKey = "";
+    // The room object itself: two rooms of the same type in a row would look alike by floor and type
+    // while the floor counter has already moved and the old room is still on screen.
+    static object? _room;
     static bool _roomHandled;
     static int _roomTries;
     static bool _restChosen, _restProceeded, _chestOpened, _relicPicked, _treasureProceeded;
     // The map is still open with voting enabled for a moment after a room is entered. Vote only after it
     // has closed once in this room, and in an event only after our own event has finished.
     static bool _mapClosedSinceEntry, _eventDone, _eventSeen;
+    static ulong _roomEnteredAt;
     static bool _votedOnMap;
     static int _lastTurnPlayed;
     static NEventOptionButton? _lastEventClick;
@@ -119,14 +122,15 @@ public static class Autopilot
         var me = LocalContext.GetMe(state);
         if (me == null) return;
 
-        string key = $"{state.CurrentActIndex}:{state.TotalFloor}:{state.CurrentRoom.RoomType}:{state.CurrentRoomCount}";
-        if (key != _roomKey)
+        var room = state.CurrentRoom;
+        if (!ReferenceEquals(room, _room))
         {
-            _roomKey = key;
+            _room = room;
             _roomHandled = false;
             _roomTries = 0;
             _restChosen = _restProceeded = _chestOpened = _relicPicked = _treasureProceeded = false;
             _mapClosedSinceEntry = _eventDone = _eventSeen = false;
+            _roomEnteredAt = Time.GetTicksMsec();
             _votedOnMap = false;
             _lastEventClick = null;
         }
@@ -179,11 +183,13 @@ public static class Autopilot
         }
         _lastTurnPlayed = 0;
 
-        // 5. Room actions.
+        // 5. Room actions. With screenshots on, give the room time to be captured before acting
+        //    (Heal at a rest site fades the screen out within a second).
+        if (DevSwitches.ShotsDir != null && Time.GetTicksMsec() - _roomEnteredAt < 3500) return;
         var type = state.CurrentRoom.RoomType;
         if (type == RoomType.Event)
         {
-            ClickEvent();
+            ClickEvent(state.CurrentRoom as EventRoom);
             return;
         }
         if (type == RoomType.Treasure)
@@ -317,6 +323,8 @@ public static class Autopilot
             ct.ThrowIfCancellationRequested();
             if (NOverlayStack.Instance?.Peek() is Node top && ScreenHandlers.TryGetValue(top.GetType(), out var h))
                 await HandleScreen(top, h);
+            else if (NOverlayStack.Instance?.Peek() is NCardGridSelectionScreen grid)
+                await PickFromGrid(grid);   // e.g. the enchant screen a bought relic opens
             await Task.Delay(100, ct);
         }
         await pending;
@@ -446,7 +454,10 @@ public static class Autopilot
         {
             var confirm = FindAll<NConfirmButton>(screen).Where(b => b.IsEnabled && b.IsVisibleInTree())
                 .OrderByDescending(Depth).FirstOrDefault();
-            if (confirm != null)
+            bool cardsLeft = FindAll<NGridCardHolder>(screen).Any(h => !GridPicked.Contains(h));
+            // Pick at least one card first: some screens allow zero, and confirming with none opens a
+            // preview whose own Confirm then does nothing (NDeckEnchantSelectScreen.ConfirmSelection).
+            if (confirm != null && (GridPicked.Count > 0 || !cardsLeft))
             {
                 Log.Info($"{ModEntry.LogTag} autopilot: {screen.GetType().Name} confirm ({GridPicked.Count} picked)");
                 confirm.ForceClick();
@@ -480,7 +491,7 @@ public static class Autopilot
         await Task.Delay(500);
     }
 
-    static void ClickEvent()
+    static void ClickEvent(EventRoom? current)
     {
         if (Engine.GetMainLoop() is not SceneTree tree) return;
         var room = tree.Root.GetNodeOrNull("/root/Game/RootSceneContainer/Run/RoomContainer/EventRoom");
@@ -498,7 +509,9 @@ public static class Autopilot
             }
         }
 
-        var options = FindAll<NEventOptionButton>(room).Where(o => o.IsEnabled && !o.Option.IsLocked).ToList();
+        // Only this room's event: during a room change the previous event's screen can still be up.
+        var options = FindAll<NEventOptionButton>(room).Where(o => o.IsEnabled && !o.Option.IsLocked
+            && (current == null || o.Event.Id == current.CanonicalEvent.Id)).ToList();
         if (options.Count == 0) { if (_lastEventClick != null) _eventDone = true; return; }
         // A shared choice waits for the others; don't click again while our choice is still on screen.
         if (_lastEventClick != null && GodotObject.IsInstanceValid(_lastEventClick) && options.Contains(_lastEventClick)) return;
