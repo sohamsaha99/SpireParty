@@ -580,3 +580,22 @@ Autopilot lessons from these runs (all fixed):
 - Some enchants allow zero picks, so Confirm is enabled at once; confirming with none opens a preview whose Confirm does nothing (`NDeckEnchantSelectScreen.ConfirmSelection` needs a picked card): an endless loop. The autopilot now picks at least one card first.
 - With screenshots on, the autopilot waits 3.5 s in each new room so the room is captured before Heal fades the screen out; the lobby is captured by player count.
 - Reading game IL from two xUnit tests at once fails inside MonoMod ("ILGeneratorProxy already loaded"); IL-reading tests share one collection.
+
+## Enemy health at 1–8 players (task 3.5, v0.113.1)
+
+The game scales only enemy HP, block and some powers with the number of players; **enemy attack damage does not scale**. Act factor f (`MultiplayerScalingModel.GetMultiplayerScaling`): 1.1 in act 1, 1.2 in acts 2 and 3, 1.3 for the act-3 boss.
+
+**Enemy HP** = base × players × f for 2+ players (`Creature.ScaleHpForMultiplayer`), base for 1:
+
+| Players | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Act 1 (×1.1) | 1 | 2.2 | 3.3 | 4.4 | 5.5 | 6.6 | 7.7 | 8.8 |
+| Acts 2–3 (×1.2) | 1 | 2.4 | 3.6 | 4.8 | 6.0 | 7.2 | 8.4 | 9.6 |
+| Act-3 boss (×1.3) | 1 | 2.6 | 3.9 | 5.2 | 6.5 | 7.8 | 9.1 | 10.4 |
+| **HP per player** | 1 | f | f | f | f | f | f | f |
+
+**Block** (`ModifyBlockMultiplicative`, powered cards and monster moves): × players for 2, × players × f for 3+, so per player the same as HP. **Powers** that scale (`ShouldScaleInMultiplayer`): by default × players × f (CurlUp, Flutter, HardenedShell, Plow, Rampart, Reattach, Regen, Shriek, Slippery); overrides: Artifact + (players − 1); Plating and Buffer × (2·players − 1), slightly more than linear (per player 1.75 at 4, 1.875 at 8); Skittish × (1 + 0.5·(players − 1)), less than linear. Heals: KnowledgeDemon 30 × players, WaterfallGiant × players.
+
+**What this means at 8.** Everything an enemy has scales linearly with the party, so the work per player to kill it is the same at 2, 4 or 8 players. Enemy damage does not scale, so with 8 players each single-target attack is spread over more people: each player takes less damage than at 4 (attacks that hit everyone are the exception). A multiplier that gave 8 players the same *total* enemy HP as 4 would be about 0.5, which would make fights at 8 half as long per player as at 4 and easier. **Recommendation (D3): keep the default at 1.0**; 8-player fights already ask the same per player as 4-player fights. The party setting (0.5–3.0) is there if a group finds it too easy or too hard.
+
+**Multiplier in game.** The host sends party.json's `enemyHealthMultiplier` in the welcome; `EnemyHealthAdapter` multiplies the game's scaled HP by it (rounded up, at least 1) on every peer. Runs `hp05` and `hp15` (5 autopilot players, the value written to party.json only): every client logged "from the host", and all five processes computed the same HP for every enemy (×0.5: 126.5 → 64, 132 → 66, 203.5 → 102; ×1.5: 209 → 314, 313.5 → 471), no divergence. The test switch `--spireparty-test-enemyhp` overrides the party value in test runs.

@@ -115,6 +115,8 @@ public sealed class HostSession
         Current = session;
         SeatNames.Set(SeatNames.Of(party));
         PartyUnlocks.Set(PartyUnlocks.ForHost(party));
+        PartyGameplay.Set((decimal)party.EnemyHealthMultiplier);
+        Log.Info($"{ModEntry.LogTag} enemy health multiplier {PartyGameplay.EnemyHealthMultiplier}");
         Log.Info($"{ModEntry.LogTag} unlocks: {PartyUnlocks.Current!.Mode}, max ascension {PartyUnlocks.Current.MaxStandardAscension} (Blitz {PartyUnlocks.Current.MaxBlitzAscension})");
         SpirePartySession.Begin(new SessionContext(SessionRole.Host, party.Name, store.PartyDir(folder),
             PartyStore.HostSeatId, SeatRules.HostPlayerId));
@@ -221,7 +223,8 @@ public sealed class HostSession
             return new Welcome(admit.Seat.PlayerId, admit.Seat.SeatId, _party.Name, admit.NewToken,
                 unlocks?.Mode ?? PartyUnlocks.Everything, 2, names,
                 mirror ? PartyUnlocks.ToJson(unlocks!.Unlocks) : null,
-                mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0);
+                mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0,
+                PartyGameplay.EnemyHealthMultiplier);
         }
     }
 
@@ -257,6 +260,7 @@ public sealed class HostSession
         SpirePartySession.End();
         SeatNames.Clear();
         PartyUnlocks.Set(null);
+        PartyGameplay.Reset();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} host session for \"{_party.Name}\" ended");
     }

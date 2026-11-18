@@ -206,7 +206,7 @@ RemoveMultiplayerPlayerLimit is the reference. It supports [8 players by default
 | Ally-targeting cards and potions | Target picker usable with 8 allies | New, verify first |
 | End-of-run screen | Fit 8 summaries | New, verify first |
 
-**Balance.** Enemy health in vanilla [scales with party size](https://slay-the-spire-2.pages.dev/guides/multiplayer-faq/). Before changing anything, read the formula in the decompiled code and chart it for 1 to 8 players. Ship one host setting, an enemy health multiplier, rather than a rebalance. Enemy HP is computed on every peer, so the host sends the multiplier to every client.
+**Balance.** Enemy health in vanilla [scales with party size](https://slay-the-spire-2.pages.dev/guides/multiplayer-faq/). Before changing anything, read the formula in the decompiled code and chart it for 1 to 8 players. Ship one host setting, an enemy health multiplier, rather than a rebalance. Enemy HP is computed on every peer, so the host sends the multiplier to every client. Charted in M3 (findings → enemy health): HP, block and most scaling powers grow linearly with the party, so the work per player stays the same at 8 as at 4, while enemy damage does not scale; the default stays 1.0.
 
 **Pacing.** Turns are simultaneous, so an 8-player turn ends when the slowest player ends theirs. The optional turn timer and AFK auto-pass (see Turn timer and AFK protection) keep one slow or absent player from stalling the other seven.
 

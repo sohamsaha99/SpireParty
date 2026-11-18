@@ -82,11 +82,11 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] One adapter per area, only in a session, each with a self-check.
 - [x] Screenshots at 8 players from autopilot runs; you judge the doubtful ones.
 
-### 3.5 Enemy health
-- [ ] Chart HP for 1–8 players per act (and the act-3 boss) in findings, with block and power scaling noted.
-- [ ] `EnemyHealthAdapter`: multiplier after the game's scaling, minimum 1 HP, only in a session, value from the welcome.
+### 3.5 Enemy health — done 2026-11-18 (findings → M3; D3: keep 1.0)
+- [x] Chart HP for 1–8 players per act (and the act-3 boss) in findings, with block and power scaling noted.
+- [x] `EnemyHealthAdapter`: multiplier after the game's scaling, minimum 1 HP, only in a session, value from the welcome.
 - [x] Test-only override, pulled into 3.3: `--spireparty-test-enemyhp=<x>` on every process (`tools/party-test.ps1 -EnemyHp`), applied by `EnemyHealthAdapter` (`kill all` can misalign checksums, findings → M3). With the real multiplier, the host sends the value in the welcome instead.
-- [ ] Unit test the arithmetic; automated run: the same enemy's max HP matches in every log at multiplier 0.5 and 1.5.
+- [x] Unit test the arithmetic; automated run: the same enemy's max HP matches in every log at multiplier 0.5 and 1.5. The welcome already carries the multiplier (3.6 adds the other settings).
 
 ### 3.6 Party settings screen and welcome
 - [ ] Party screen gets **Settings**: max players, enemy health multiplier, turn timer, AFK strikes. Written to `party.json`, backed up like a roster edit, used from the next Continue.

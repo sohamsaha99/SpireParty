@@ -24,6 +24,7 @@ param(
     [switch]$Stop,
     [int]$KillTurn = 0,
     [string]$EnemyHp = "",
+    [string]$PartyEnemyHealth = "",
     [int]$HostTimeoutSeconds = 90
 )
 $ErrorActionPreference = "Stop"
@@ -60,6 +61,18 @@ foreach ($id in @(1) + (1..$Clients | ForEach-Object { 1000 + $_ })) {
     }
 }
 
+
+# -PartyEnemyHealth x: write the party's own enemyHealthMultiplier into its party.json before the host
+# opens it (the host then sends it to every client). Run names are lower-case, so the folder is the name.
+if ($PartyEnemyHealth) {
+    $partyDir = Join-Path $env:APPDATA (Join-Path "SlayTheSpire2" (Join-Path "mods" (Join-Path "SpireParty" (Join-Path "parties" $Party.ToLowerInvariant()))))
+    New-Item -ItemType Directory -Force $partyDir | Out-Null
+    $partyFile = Join-Path $partyDir "party.json"
+    $json = if (Test-Path $partyFile) { Get-Content $partyFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ name = $Party } }
+    $json | Add-Member -NotePropertyName enemyHealthMultiplier -NotePropertyValue ([double]::Parse($PartyEnemyHealth, [Globalization.CultureInfo]::InvariantCulture)) -Force
+    [IO.File]::WriteAllText($partyFile, ($json | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding $false))   # no BOM
+    Write-Host "party.json: enemyHealthMultiplier = $PartyEnemyHealth"
+}
 # A fresh run starts from a fresh log per process; -Continue keeps old logs as <name>-<n>.log.
 function Get-LogPath([string]$name) {
     $path = Join-Path $runDir "$name.log"
