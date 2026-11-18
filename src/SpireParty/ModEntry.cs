@@ -40,6 +40,8 @@ public static class ModEntry
         new NamesAdapter(),
         new UnlocksAdapter(),
         new PauseMenuAdapter(),
+        new WireFormatAdapter(),
+        new EnemyHealthAdapter(),
     };
 
     public static void Init()
@@ -60,6 +62,10 @@ public static class ModEntry
                 Log.Warn($"{LogTag} adapter {name} not applied: {reason}");
             if (Adapters.DisabledMessage() is { } message)
                 Log.Warn($"{LogTag} {message}");
+            // Parties of 5–8 need the widened lobby format; without it, stay at the vanilla 4.
+            if (!Adapters.IsFeatureEnabled(Features_.MoreThanFourPlayers))
+                Core.RosterEdit.GameCap = Core.RosterEdit.VanillaCap;
+            Log.Info($"{LogTag} player cap {Core.RosterEdit.GameCap}");
             UI.MainThread.Ensure();
         }
         catch (Exception e)

@@ -5,6 +5,7 @@
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Autopilot      host + 4 clients, all play themselves
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Manual 1       client 1 is played by a person (no autopilot)
 #   tools/party-test.ps1 -Run smoke5 -Continue                   same party and seats again (rejoin with saved tokens)
+#   tools/party-test.ps1 -Run fast -Clients 4 -Autopilot -EnemyHp 0.1   enemies at 10% HP on every process (short fights)
 #   tools/party-test.ps1 -Run long -Clients 3 -Autopilot -KillTurn 4   host ends fights from turn 4 (console "kill all", synced)
 #   tools/party-test.ps1 -Stop                                   close every game process
 #
@@ -21,6 +22,7 @@ param(
     [switch]$Continue,
     [switch]$Stop,
     [int]$KillTurn = 0,
+    [string]$EnemyHp = "",
     [int]$HostTimeoutSeconds = 90
 )
 $ErrorActionPreference = "Stop"
@@ -72,6 +74,7 @@ function Start-Game([string]$name, [string[]]$extra, [bool]$auto) {
     $argv = @("--log-file", "`"$(Get-LogPath $name)`"", "--force-steam", "off")
     if (-not $NoLight) { $argv += "--spireparty-light" }
     if ($auto) { $argv += "--spireparty-autopilot" }
+    if ($EnemyHp) { $argv += "--spireparty-test-enemyhp=$EnemyHp" }
     if ($Shots) { $argv += "--spireparty-shots=`"$(Join-Path $runDir "shots-$name")`"" }
     $argv += $extra
     $cmd = "`"$exe`" " + ($argv -join " ")

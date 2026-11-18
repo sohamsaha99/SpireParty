@@ -549,3 +549,16 @@ Method: every bit-width argument to `PacketWriter`/`PacketReader` in the game (`
 | 15 | Daily seed and leaderboard name include the player count (`_{n}p`) | A different daily seed for 5–8 (fine); leaderboard already skipped | none | none |
 
 No per-player colour table exists (vote icons and character-button icons are coloured local versus remote only). Everything else that compares `Players.Count` only tells single-player from co-op (`> 1`, `== 1`). The game's message type table is untouched by SpireParty (RMP adds its own net messages; we use the control channel).
+
+## Cap and wire format (task 3.3, Windows VM, 2026-11-18)
+
+**Result: parties of 5 and 8 start, play and reload a run with no divergence.**
+
+- `WireFormatAdapter` swaps the width constant before the six target calls (audit rows 1–3) for `WireWidths.SlotBits()` / `ListBits()`: 3 and 4 bits in a session, 2 and 3 outside. Its self-check runs the same matcher on `PatchProcessor.GetOriginalInstructions` and needs exactly one hit per method; a unit test runs it against the installed `sts2.dll`. If it fails, the feature "More than 4 players" is disabled and `RosterEdit.GameCap` falls back to 4.
+- The cap is `min(party.maxPlayers, RosterEdit.GameCap)` everywhere: ENet `maxClients`, the lobby's `maxPlayers`, the handshake's "party is full" and the roster editor.
+- Session timing: the host starts ENet before `SpirePartySession.Begin`, but no lobby message is sent before it; a client begins its session before the game's join. So both ends use the wide format for every lobby message.
+- **5 players** (run `p5b`, enemy HP ×0.15): 7 rooms, identical checksums (90) in all five logs. It stopped at the first rest site: `ArgumentOutOfRangeException` in `NRestSiteRoom._Ready` (audit row 6, task 3.4), as expected.
+- **8 players** (run `p8`): 5 rooms clean. Then all processes were closed and restarted with `-Continue`: the host loaded the saved 8-player run, all seven clients reclaimed their seats with their saved tokens, everyone readied in `NMultiplayerLoadGameScreen` (the load-join response already uses 8 bits), and the party played on with identical checksums (170) in all eight logs.
+- **Resources with 8 playing:** 770 MB per game on average (6.0 GB), free RAM down to 0.1 GB with 0.8 GB paged out, CPU about 30%, pings about 130 ms. It runs, but closing other desktop apps before 8-player tests leaves headroom.
+- **`kill all` again:** with 5 players, `kill all` ended a fight while other players' card plays were still queued, and two clients resolved those differently (divergence on the next card's checksum). The test-only enemy HP factor (`--spireparty-test-enemyhp`, `EnemyHealthAdapter`, pulled forward from task 3.5) replaces it: every process gets the same factor on its command line, so all compute the same HP (66 → 10 at ×0.15 in every log). Fights stay short with no console command.
+- `tools/check-logs.ps1` now counts the game's cancelled card plays (`[ERROR] GameAction … was in state Canceled!`, logged alike on every peer when the target is already dead) in their own column instead of as errors.

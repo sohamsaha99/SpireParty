@@ -1,7 +1,8 @@
 # Checks every game log of a test run (spikes/logs/<run>/*.log) for problems:
 # errors and exceptions, state divergence, adapter self-check failures, SpireParty warnings,
 # and how many synced checksums each process computed (they should match for processes that
-# were in the same combats the whole time).
+# were in the same combats the whole time). Card plays the game cancels (target already dead, no
+# energy left) are logged as [ERROR] on every peer alike; they are counted apart ("canceled").
 #
 #   tools/check-logs.ps1 -Run smoke5            exit code 0 = clean, 1 = something to look at
 #   tools/check-logs.ps1 -Run smoke5 -Ignore "Received connection failed"
@@ -17,7 +18,7 @@ $logs = Get-ChildItem -Path $runDir -Filter "*.log" -ErrorAction Stop | Sort-Obj
 if (-not $logs) { throw "No logs in $runDir" }
 
 $checks = [ordered]@{
-    "error"      = '^\[ERROR\]'
+    "error"      = '^\[ERROR\](?!.*was in state Canceled)'
     "exception"  = 'Exception:'
     "divergence" = 'diverg|StateDivergence'
     "adapter"    = 'adapter .* not applied|SpireParty features disabled'
@@ -42,6 +43,7 @@ $rows = foreach ($log in $logs) {
     $sums = @($lines | Select-String -Pattern 'Generating checksum for context: .* id: (\d+)$')
     $row["checksums"] = $sums.Count
     $row["lastId"] = if ($sums) { [int]$sums[-1].Matches[0].Groups[1].Value } else { 0 }
+    $row["canceled"] = @($lines | Where-Object { $_ -match "was in state Canceled" }).Count
     $row["autopilot"] = @($lines | Where-Object { $_ -match '\[SpireParty\] autopilot: ' }).Count
     $row["floors"] = @($lines | Where-Object { $_ -match 'autopilot: map vote' }).Count
     [pscustomobject]$row

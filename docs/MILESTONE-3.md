@@ -70,11 +70,11 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] Read RMP's source (in the browser) and map each of its patches to an audit row: reuse, adapt or not needed.
 - [x] Findings table: place, what breaks at 5–8, fix chosen.
 
-### 3.3 Cap and wire format
-- [ ] Cap: `HostSession.PlayerCap` and `RosterEdit.GameCap` → `min(maxPlayers, 8)` (SpireParty already makes the ENet and lobby calls itself, so no patch for Standard; Daily's literal 4 is patched in 3.9).
-- [ ] `WireFormatAdapter`: `StartRunLobbyPlayer.slotId` 2 → 3 bits and the `playersInLobby` lists of `ClientLobbyJoinResponseMessage` and `LobbyBeginRunMessage` 3 → 4 bits (audit rows 1–3), during a session only, on host and client alike (transpiler: the width constant becomes a call). Its self-check confirms each serializer still has the vanilla width, so a game patch that changes it disables the adapter instead of corrupting packets.
-- [ ] `RosterEdit.GameCap` → 8; the editor and handshake refuse a ninth seat with a reason.
-- [ ] Unit tests; automated run: 5 then 8 processes reach the new-run lobby, start, Save and Quit, all rejoin the load lobby.
+### 3.3 Cap and wire format — done 2026-11-18 (findings → M3)
+- [x] Cap: `HostSession.PlayerCap` and `RosterEdit.GameCap` → `min(maxPlayers, 8)` (SpireParty already makes the ENet and lobby calls itself, so no patch for Standard; Daily's literal 4 is patched in 3.9).
+- [x] `WireFormatAdapter`: `StartRunLobbyPlayer.slotId` 2 → 3 bits and the `playersInLobby` lists of `ClientLobbyJoinResponseMessage` and `LobbyBeginRunMessage` 3 → 4 bits (audit rows 1–3), during a session only, on host and client alike (transpiler: the width constant becomes a call). Its self-check confirms each serializer still has the vanilla width, so a game patch that changes it disables the adapter instead of corrupting packets.
+- [x] `RosterEdit.GameCap` → 8; the editor and handshake refuse a ninth seat with a reason.
+- [x] Unit tests; automated run: 5 then 8 processes reach the new-run lobby and start; 8 closed and restarted (the run is saved at room entry, same as Save and Quit) all rejoin the load lobby and play on. A real Save and Quit at 8 is in the gate.
 
 ### 3.4 Screens for eight
 - [ ] Must fix (audit rows 6–7): rest site seats 5–8 (RMP's approach), treasure holders beyond the largest layout (our own code; check how many layouts the scene has).
@@ -85,7 +85,7 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 ### 3.5 Enemy health
 - [ ] Chart HP for 1–8 players per act (and the act-3 boss) in findings, with block and power scaling noted.
 - [ ] `EnemyHealthAdapter`: multiplier after the game's scaling, minimum 1 HP, only in a session, value from the welcome.
-- [ ] Test-only override (`--spireparty-test-enemyhp=<x>` on the host, any value above 0, sent in the welcome like the real multiplier) so autopilot runs win fights without the console (`kill all` can misalign checksums, findings → M3).
+- [x] Test-only override, pulled into 3.3: `--spireparty-test-enemyhp=<x>` on every process (`tools/party-test.ps1 -EnemyHp`), applied by `EnemyHealthAdapter` (`kill all` can misalign checksums, findings → M3). With the real multiplier, the host sends the value in the welcome instead.
 - [ ] Unit test the arithmetic; automated run: the same enemy's max HP matches in every log at multiplier 0.5 and 1.5.
 
 ### 3.6 Party settings screen and welcome

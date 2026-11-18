@@ -25,8 +25,8 @@ namespace SpireParty.Net;
 /// </summary>
 public sealed class HostSession
 {
-    /// <summary>Players per party until M3 raises the cap.</summary>
-    public const int PlayerCap = 4;
+    /// <summary>Players this party allows: its maxPlayers, at most what the game can carry (RosterEdit.Cap).</summary>
+    int PlayerCap => RosterEdit.Cap(_party);
 
     public static HostSession? Current { get; private set; }
 
@@ -103,7 +103,7 @@ public sealed class HostSession
         }
 
         var netService = new NetHostGameService(PeerVersionInfo.LocalDefault());
-        var error = netService.StartENetHost((ushort)config.GamePort, PlayerCap);
+        var error = netService.StartENetHost((ushort)config.GamePort, RosterEdit.Cap(party));
         if (error.HasValue)
         {
             server.Dispose();
@@ -124,7 +124,7 @@ public sealed class HostSession
 
         try
         {
-            PushLobby(stack, netService, run);
+            PushLobby(stack, netService, run, RosterEdit.Cap(party));
         }
         catch (Exception e)
         {
@@ -135,12 +135,12 @@ public sealed class HostSession
         return null;
     }
 
-    static void PushLobby(NSubmenuStack stack, NetHostGameService netService, SerializableRun? run)
+    static void PushLobby(NSubmenuStack stack, NetHostGameService netService, SerializableRun? run, int playerCap)
     {
         if (run == null)
         {
             var screen = stack.GetSubmenuType<NCharacterSelectScreen>();
-            screen.InitializeMultiplayerAsHost(netService, PlayerCap);
+            screen.InitializeMultiplayerAsHost(netService, playerCap);
             stack.Push(screen);
         }
         else if (run.GameMode == GameMode.Daily)

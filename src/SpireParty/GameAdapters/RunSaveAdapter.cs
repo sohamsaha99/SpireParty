@@ -87,4 +87,7 @@ public static class Features_
 {
     /// <summary>Hosting and joining SpireParty sessions. Needs every M1 adapter: never run half-patched.</summary>
     public const string DirectConnect = "SpireParty Host and Join";
+
+    /// <summary>Parties of 5 to 8. Without it a party is capped at the vanilla 4 (WireFormatAdapter).</summary>
+    public const string MoreThanFourPlayers = "More than 4 players";
 }

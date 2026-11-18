@@ -10,6 +10,7 @@ namespace SpireParty.Dev;
 ///   --spireparty-shots=&lt;dir&gt;      save a PNG of the game's viewport whenever the screen changes
 ///   --spireparty-expect=N         with --spireparty-autopilot on the host: ready only once N players are in the lobby (default 2)
 ///   --spireparty-tokenfile=&lt;path&gt;  a test seat stores its new token here (no popup) and joins with it next time
+///   --spireparty-test-enemyhp=x   enemy HP factor for test runs (same value on every process; tools/party-test.ps1 -EnemyHp)
 ///   --spireparty-killturn=N       with --spireparty-autopilot on the host: from turn N of a fight, run the console's "kill all" (synced, but can
 ///                                 misalign checksums when it ends a fight: quick runs only, see findings → M3)
 /// </summary>
@@ -53,6 +54,15 @@ public static class DevSwitches
     /// <summary>--spireparty-killturn=N: an autopilot host runs the console's "kill all" from turn N of a fight.</summary>
     public static int? KillTurn =>
         CommandLineHelper.TryGetValue("spireparty-killturn", out string? n) && int.TryParse(n, out int v) && v > 0 ? v : null;
+
+    /// <summary>
+    /// --spireparty-test-enemyhp=x (0 &lt; x ≤ 3): enemy HP factor for test runs. Every process of the party
+    /// must get the same value (tools/party-test.ps1 -EnemyHp passes it to all), or HP would diverge.
+    /// </summary>
+    public static decimal? TestEnemyHp =>
+        CommandLineHelper.TryGetValue("spireparty-test-enemyhp", out string? s)
+        && decimal.TryParse(s, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal v)
+        && v > 0m && v <= 3m ? v : null;
 
     public static string? ShotsDir =>
         CommandLineHelper.TryGetValue("spireparty-shots", out string? dir) && !string.IsNullOrWhiteSpace(dir) ? dir : null;

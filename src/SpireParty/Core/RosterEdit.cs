@@ -44,11 +44,16 @@ public sealed class RosterResult
 /// </summary>
 public static class RosterEdit
 {
-    /// <summary>The game's lobby and wire format allow 4 players until M3.</summary>
-    public const int GameCap = 4;
+    /// <summary>
+    /// Most players the game can carry: <see cref="WireWidths.MaxPlayers"/> (8) with the widened lobby
+    /// format, set back to the vanilla 4 at startup if that patch could not be applied.
+    /// </summary>
+    public static int GameCap { get; set; } = WireWidths.MaxPlayers;
+    public const int VanillaCap = 4;
     public const int MinPlayers = 2;
 
-    public static int Cap(PartyFile party) => Math.Min(party.MaxPlayers, GameCap);
+    public static int Cap(PartyFile party) => Cap(party, GameCap);
+    public static int Cap(PartyFile party, int gameCap) => Math.Min(party.MaxPlayers, gameCap);
 
     public static RosterResult Bench(SerializableRun run, PartyFile party, string seatId)
     {
