@@ -115,8 +115,8 @@ public sealed class HostSession
         Current = session;
         SeatNames.Set(SeatNames.Of(party));
         PartyUnlocks.Set(PartyUnlocks.ForHost(party));
-        PartyGameplay.Set((decimal)party.EnemyHealthMultiplier);
-        Log.Info($"{ModEntry.LogTag} enemy health multiplier {PartyGameplay.EnemyHealthMultiplier}");
+        PartyGameplay.Set((decimal)party.EnemyHealthMultiplier, party.TurnTimerSeconds, party.AfkStrikes);
+        Log.Info($"{ModEntry.LogTag} party settings: enemy health {PartyGameplay.EnemyHealthMultiplier}, turn timer {PartyGameplay.TurnTimerSeconds} s, AFK after {PartyGameplay.AfkStrikes}");
         Log.Info($"{ModEntry.LogTag} unlocks: {PartyUnlocks.Current!.Mode}, max ascension {PartyUnlocks.Current.MaxStandardAscension} (Blitz {PartyUnlocks.Current.MaxBlitzAscension})");
         SpirePartySession.Begin(new SessionContext(SessionRole.Host, party.Name, store.PartyDir(folder),
             PartyStore.HostSeatId, SeatRules.HostPlayerId));
@@ -224,7 +224,7 @@ public sealed class HostSession
                 unlocks?.Mode ?? PartyUnlocks.Everything, 2, names,
                 mirror ? PartyUnlocks.ToJson(unlocks!.Unlocks) : null,
                 mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0,
-                PartyGameplay.EnemyHealthMultiplier);
+                PartyGameplay.EnemyHealthMultiplier, PartyGameplay.TurnTimerSeconds, PartyGameplay.AfkStrikes);
         }
     }
 

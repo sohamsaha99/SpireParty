@@ -169,6 +169,21 @@ public sealed class PartyEditor
         return RosterCommit.Write(_store, _backups, Folder, _keep, $"rename {seat.SeatId}", null, party);
     }
 
+    /// <summary>Saves the Settings screen's values (backed up first). Null on success or when nothing changed.</summary>
+    public string? SaveSettings(PartySettings settings, out string changed)
+    {
+        var party = LoadParty();
+        var before = PartySettings.Of(party);
+        changed = settings.Diff(before);
+        if (changed.Length == 0) return null;
+        int inRun;
+        try { inRun = LoadRun()?.Players.Count ?? 0; }
+        catch (InvalidDataException e) { return e.Message; }
+        if (settings.Check(inRun, RosterEdit.GameCap) is { } refusal) return refusal;
+        settings.ApplyTo(party);
+        return RosterCommit.Write(_store, _backups, Folder, _keep, $"settings: {changed}", null, party);
+    }
+
     // ---- backups
 
     public IReadOnlyList<BackupInfo> Backups() => _backups.List(Folder);

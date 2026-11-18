@@ -27,7 +27,7 @@ public sealed record Hello(string SpirePartyVersion, string GameVersion, string 
 public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, string? NewToken, string Unlocks, int HeartbeatSeconds,
                              IReadOnlyDictionary<ulong, string>? Names = null,
                              string? HostUnlocks = null, int HostMaxStandardAscension = 0, int HostMaxBlitzAscension = 0,
-                             decimal EnemyHealthMultiplier = 1m) : ControlMessage;
+                             decimal EnemyHealthMultiplier = 1m, int TurnTimerSeconds = 0, int AfkStrikes = 2) : ControlMessage;
 
 /// <summary>Host → clients whenever a seat's display name changes: every seat's name, by player ID.</summary>
 public sealed record Roster(IReadOnlyDictionary<ulong, string> Names) : ControlMessage;
@@ -65,6 +65,7 @@ public static class ControlCodec
                 ["names"] = w.Names == null ? null : EncodeNames(w.Names),
                 ["hostUnlocks"] = w.HostUnlocks, ["hostMaxStandardAscension"] = w.HostMaxStandardAscension,
                 ["hostMaxBlitzAscension"] = w.HostMaxBlitzAscension, ["enemyHealthMultiplier"] = w.EnemyHealthMultiplier,
+                ["turnTimerSeconds"] = w.TurnTimerSeconds, ["afkStrikes"] = w.AfkStrikes,
             },
             Roster r => new JsonObject { ["type"] = "roster", ["names"] = EncodeNames(r.Names) },
             Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
@@ -104,7 +105,9 @@ public static class ControlCodec
                     Str("unlocks"), o["heartbeatSeconds"]?.GetValue<int>() ?? 2, DecodeNames(o["names"]),
                     o["hostUnlocks"] is JsonValue hu && hu.TryGetValue(out string? hus) ? hus : null,
                     o["hostMaxStandardAscension"]?.GetValue<int>() ?? 0, o["hostMaxBlitzAscension"]?.GetValue<int>() ?? 0,
-                    o["enemyHealthMultiplier"] is JsonValue m && m.TryGetValue(out decimal mul) ? mul : 1m),
+                    o["enemyHealthMultiplier"] is JsonValue m && m.TryGetValue(out decimal mul) ? mul : 1m,
+                    o["turnTimerSeconds"] is JsonValue tt && tt.TryGetValue(out int tts) ? tts : 0,
+                    o["afkStrikes"] is JsonValue af && af.TryGetValue(out int afs) ? afs : 2),
                 "roster" => new Roster(DecodeNames(o["names"]) ?? new Dictionary<ulong, string>()),
                 "refuse" => new Refuse(Str("code"), Str("reason")),
                 "heartbeat" => new Heartbeat(),

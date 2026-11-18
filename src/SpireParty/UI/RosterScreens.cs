@@ -52,6 +52,7 @@ public static class RosterScreens
         form.AddText(summary);
         var seats = editor.Seats(out _).Where(s => s.Status is "host" or "active" or "not in run").Select(s => s.Name);
         form.AddText($"Seats: {string.Join(", ", seats)}", 18);
+        form.AddText(PartySettings.Of(party).Summary(), 18);
 
         form.AddButtons(
             ("Continue", () =>
@@ -61,12 +62,56 @@ public static class RosterScreens
                 else form.SetStatus(err);
             }),
             ("Roster", () => { form.Close(); OpenRoster(folder, stack); }),
+            ("Settings", () => { form.Close(); OpenSettings(folder, stack); }),
             ("Backups", () => { form.Close(); OpenBackups(folder, stack); }),
             ("Back", form.Close));
         if (status != null) form.SetStatus(status, error);
         form.Show();
     }
 
+
+    // ---- settings
+
+    /// <summary>Max players, enemy health, turn timer and AFK strikes (M3 task 3.6). Used from the next Continue.</summary>
+    public static void OpenSettings(string folder, NSubmenuStack stack, string? status = null, bool error = false)
+    {
+        var editor = Editor(folder);
+        var party = editor.LoadParty();
+        var current = PartySettings.Of(party);
+        var form = new Form($"Settings: {party.Name}", 760);
+        form.AddText("Changes are backed up and take effect the next time you press Continue.", 18);
+
+        static int IndexOf<T>(T[] items, T value) => Math.Max(0, Array.IndexOf(items, value));
+        var maxPlayers = form.AddOptions("Max players", PartySettings.MaxPlayerChoices.Select(n => n.ToString()),
+            IndexOf(PartySettings.MaxPlayerChoices, current.MaxPlayers));
+        // A hand-edited value that is not in the list is offered too, so opening and saving never changes it.
+        var health = PartySettings.EnemyHealthChoices.Contains(current.EnemyHealthMultiplier)
+            ? PartySettings.EnemyHealthChoices
+            : PartySettings.EnemyHealthChoices.Append(current.EnemyHealthMultiplier).OrderBy(x => x).ToArray();
+        var healthBox = form.AddOptions("Enemy health (1 = the game's own co-op scaling)", health.Select(PartySettings.Health),
+            IndexOf(health, current.EnemyHealthMultiplier));
+        var timer = form.AddOptions("Turn timer", PartySettings.TurnTimerChoices.Select(PartySettings.Timer),
+            IndexOf(PartySettings.TurnTimerChoices, current.TurnTimerSeconds));
+        var afk = form.AddOptions("Mark a player AFK after this many timed-out turns in a row", PartySettings.AfkStrikeChoices.Select(n => n.ToString()),
+            IndexOf(PartySettings.AfkStrikeChoices, current.AfkStrikes));
+
+        form.AddButtons(
+            ("Save", () =>
+            {
+                var chosen = new PartySettings(
+                    PartySettings.MaxPlayerChoices[maxPlayers.Selected],
+                    health[healthBox.Selected],
+                    PartySettings.TurnTimerChoices[timer.Selected],
+                    PartySettings.AfkStrikeChoices[afk.Selected]);
+                string? err = editor.SaveSettings(chosen, out string changed);
+                if (err != null) { form.SetStatus(err); return; }
+                form.Close();
+                OpenParty(folder, stack, changed.Length == 0 ? "Nothing changed." : $"Saved: {changed}.", false);
+            }),
+            ("Back", () => { form.Close(); OpenParty(folder, stack); }));
+        if (status != null) form.SetStatus(status, error);
+        form.Show();
+    }
     // ---- roster
 
     public static void OpenRoster(string folder, NSubmenuStack stack, string? status = null, bool error = false)
@@ -135,6 +180,7 @@ public static class RosterScreens
 
         form.AddButtons(
             ("Add seat", () => { form.Close(); OpenAdd(folder, stack, "", ""); }),
+            ("Settings", () => { form.Close(); OpenSettings(folder, stack); }),
             ("Backups", () => { form.Close(); OpenBackups(folder, stack); }),
             ("Back", () => { form.Close(); OpenParty(folder, stack); }));
 

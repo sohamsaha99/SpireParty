@@ -88,10 +88,10 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] Test-only override, pulled into 3.3: `--spireparty-test-enemyhp=<x>` on every process (`tools/party-test.ps1 -EnemyHp`), applied by `EnemyHealthAdapter` (`kill all` can misalign checksums, findings → M3). With the real multiplier, the host sends the value in the welcome instead.
 - [x] Unit test the arithmetic; automated run: the same enemy's max HP matches in every log at multiplier 0.5 and 1.5. The welcome already carries the multiplier (3.6 adds the other settings).
 
-### 3.6 Party settings screen and welcome
-- [ ] Party screen gets **Settings**: max players, enemy health multiplier, turn timer, AFK strikes. Written to `party.json`, backed up like a roster edit, used from the next Continue.
-- [ ] Welcome carries the settings and the mode; clients apply them for the session only.
-- [ ] Unit tests: codec, missing keys, out-of-range values.
+### 3.6 Party settings screen and welcome — done 2026-11-18
+- [x] Party screen gets **Settings**: max players, enemy health multiplier, turn timer, AFK strikes. Written to `party.json`, backed up like a roster edit, used from the next Continue. The party screen shows a one-line summary. A change that would leave max players below the saved run's player count is refused with the reason.
+- [x] Welcome carries enemy health, turn timer and AFK strikes; clients apply them for the session only (`Core/PartyGameplay`). The mode is added with the mode picker (3.9).
+- [x] Unit tests: codec, missing keys, out-of-range values. In game (user, party `hp15`): Settings saved enemy health ×1.25 and turn timer 30 s with a backup; a host and a client then both logged those values.
 
 ### 3.7 Turn timer
 - [ ] `Core/TurnTimer` (pure): start, warning at 10 s, expire, pause, resume; clock passed in. Unit-tested.

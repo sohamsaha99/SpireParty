@@ -44,6 +44,38 @@ public sealed class PartyEditorTests : IDisposable
 
     SeatView Seat(string id) => _editor.Seats(out _).Single(s => s.SeatId == id);
 
+    // ---- settings (M3 task 3.6)
+
+    [Fact]
+    public void SaveSettings_WritesPartyJson_WithABackupFirst()
+    {
+        var s = new PartySettings(6, 1.5, 45, 3);
+        Assert.Null(_editor.SaveSettings(s, out var changed));
+        Assert.Equal("max players 6, enemy health ×1.5, turn timer 45 s, AFK after 3", changed);
+        var party = _editor.LoadParty();
+        Assert.Equal(s, PartySettings.Of(party));
+        var backup = Assert.Single(_editor.Backups());
+        Assert.Contains("settings: max players 6", backup.Reason);
+    }
+
+    [Fact]
+    public void SaveSettings_NothingChanged_TakesNoBackup()
+    {
+        Assert.Null(_editor.SaveSettings(PartySettings.Of(_editor.LoadParty()), out var changed));
+        Assert.Equal("", changed);
+        Assert.Empty(_editor.Backups());
+    }
+
+    [Fact]
+    public void SaveSettings_RefusesFewerMaxPlayersThanTheRunHas_AndChangesNothing()
+    {
+        string before = File.ReadAllText(Path.Combine(_store.PartyDir(Folder), "party.json"));
+        string? err = _editor.SaveSettings(new PartySettings(2, 1.0, 0, 2), out _);
+        Assert.Contains("already has 3 players", err);
+        Assert.Equal(before, File.ReadAllText(Path.Combine(_store.PartyDir(Folder), "party.json")));
+        Assert.Empty(_editor.Backups());
+    }
+
     [Fact]
     public void Seats_ShowStatusNameAndStats()
     {
