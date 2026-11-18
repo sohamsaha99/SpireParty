@@ -63,21 +63,22 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] Dev console: works in modded games; networked commands are synced actions. `--spireparty-killturn=N` (host autopilot runs `kill all` from turn N).
 - [x] `tools/check-logs.ps1` (exceptions, divergence, checksum counts, self-checks) and `--spireparty-shots=<dir>` screenshots.
 
-### 3.2 Audit: everything that assumes four players
-- [ ] Packet fields holding a slot index or a player count across all `INetMessage` types and `NetFullCombatState`.
-- [ ] UI: nodes or arrays sized 4 (`Character_1..4`), `% 4`, per-player colours (map markers, drawings, nameplates), fixed containers in the character select, load, game-over and rest-site screens.
-- [ ] Logic: any `Players.Count` limit, slot-indexed tables, `ScoreUtility`.
-- [ ] Read RMP's source (in the browser) and map each of its patches to an audit row: reuse, adapt or not needed.
-- [ ] Findings table: place, what breaks at 5–8, fix chosen.
+### 3.2 Audit: everything that assumes four players — done 2026-11-18 (findings → M3)
+- [x] Packet fields holding a slot index or a player count across all `INetMessage` types and `NetFullCombatState`.
+- [x] UI: nodes or arrays sized 4 (`Character_1..4`), `% 4`, per-player colours (map markers, drawings, nameplates), fixed containers in the character select, load, game-over and rest-site screens.
+- [x] Logic: any `Players.Count` limit, slot-indexed tables, `ScoreUtility`.
+- [x] Read RMP's source (in the browser) and map each of its patches to an audit row: reuse, adapt or not needed.
+- [x] Findings table: place, what breaks at 5–8, fix chosen.
 
 ### 3.3 Cap and wire format
-- [ ] `PlayerCapAdapter`: host entry points (all modes) and `StartRunLobby._maxPlayers` use `min(maxPlayers, 8)` during a session.
-- [ ] `WireFormatAdapter`: the fields from 3.2 read and write wider during a session only, on host and client alike. Its self-check confirms each serializer still has the vanilla width, so a game patch that changes it disables the adapter instead of corrupting packets.
+- [ ] Cap: `HostSession.PlayerCap` and `RosterEdit.GameCap` → `min(maxPlayers, 8)` (SpireParty already makes the ENet and lobby calls itself, so no patch for Standard; Daily's literal 4 is patched in 3.9).
+- [ ] `WireFormatAdapter`: `StartRunLobbyPlayer.slotId` 2 → 3 bits and the `playersInLobby` lists of `ClientLobbyJoinResponseMessage` and `LobbyBeginRunMessage` 3 → 4 bits (audit rows 1–3), during a session only, on host and client alike (transpiler: the width constant becomes a call). Its self-check confirms each serializer still has the vanilla width, so a game patch that changes it disables the adapter instead of corrupting packets.
 - [ ] `RosterEdit.GameCap` → 8; the editor and handshake refuse a ninth seat with a reason.
 - [ ] Unit tests; automated run: 5 then 8 processes reach the new-run lobby, start, Save and Quit, all rejoin the load lobby.
 
 ### 3.4 Screens for eight
-- [ ] Rest site, treasure, combat (eight characters and health bars), player panels, lobby and load lists, map vote markers, ally targeting, game-over summaries, and whatever else 3.2 found. RMP code where it fits.
+- [ ] Must fix (audit rows 6–7): rest site seats 5–8 (RMP's approach), treasure holders beyond the largest layout (our own code; check how many layouts the scene has).
+- [ ] Check with screenshots and fix if crowded (rows 10–12): combat, shop (RMP's re-grid if needed), player panels, lobby and load lists, map vote icons, ally targeting, game over.
 - [ ] One adapter per area, only in a session, each with a self-check.
 - [ ] Screenshots at 8 players from autopilot runs; you judge the doubtful ones.
 
