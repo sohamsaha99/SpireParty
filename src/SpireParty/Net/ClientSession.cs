@@ -75,6 +75,12 @@ public sealed class ClientSession
         SpirePartySession.Begin(new SessionContext(SessionRole.Client, welcome.PartyName, null, welcome.SeatId, welcome.PlayerId));
         SeatNames.Set(welcome.Names ?? new System.Collections.Generic.Dictionary<ulong, string>());
         result.Client.RosterReceived += roster => SeatNames.Set(roster.Names);
+        PartyGameplay.TimerPaused = welcome.TimerPaused;
+        result.Client.TimerPauseReceived += p => MainThread.Post(() =>
+        {
+            PartyGameplay.TimerPaused = p.Paused;
+            Log.Info($"{ModEntry.LogTag} turn timer {(p.Paused ? "paused" : "resumed")} by the host");
+        });
         PartyUnlocks.Set(PartyUnlocks.ForClient(welcome.Unlocks, welcome.HostUnlocks, welcome.HostMaxStandardAscension, welcome.HostMaxBlitzAscension));
         PartyGameplay.Set(welcome.EnemyHealthMultiplier, welcome.TurnTimerSeconds, welcome.AfkStrikes);
         Log.Info($"{ModEntry.LogTag} party settings from the host: enemy health {PartyGameplay.EnemyHealthMultiplier}, turn timer {PartyGameplay.TurnTimerSeconds} s, AFK after {PartyGameplay.AfkStrikes}");

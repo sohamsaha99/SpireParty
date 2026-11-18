@@ -71,6 +71,7 @@ public static class ModEntry
                 Core.RosterEdit.GameCap = Core.RosterEdit.VanillaCap;
             Log.Info($"{LogTag} player cap {Core.RosterEdit.GameCap}");
             UI.MainThread.Ensure();
+            UI.TurnTimerView.Start();
         }
         catch (Exception e)
         {

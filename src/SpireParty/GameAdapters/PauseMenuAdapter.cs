@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu;
 using SpireParty.Core;
+using SpireParty.Net;
 using SpireParty.UI;
 
 namespace SpireParty.GameAdapters;
@@ -44,6 +45,28 @@ public sealed class PauseMenuAdapter : GameAdapter
         harmony.Patch(AccessTools.Method(typeof(NPauseMenu), "_Ready", Type.EmptyTypes),
             postfix: new HarmonyMethod(typeof(PauseMenuAdapter), nameof(ReadyPostfix)));
 
+    const string TimerButtonName = "SpirePartyTimerPause";
+
+    static string TimerLabel() => PartyGameplay.TimerPaused ? "Resume turn timer" : "Pause turn timer";
+
+    /// <summary>"Pause turn timer" / "Resume turn timer" for the host when the party has a timer (M3 task 3.7).</summary>
+    static void AddTimerButton(Control container, NPauseMenuButton saveAndQuit)
+    {
+        if (container.HasNode(TimerButtonName)) return;
+        var button = (NPauseMenuButton)saveAndQuit.Duplicate((int)(Node.DuplicateFlags.Groups | Node.DuplicateFlags.Scripts | Node.DuplicateFlags.UseInstantiation));
+        button.Name = TimerButtonName;
+        container.AddChild(button);
+        container.MoveChild(button, saveAndQuit.GetIndex());
+        var label = button.GetNode<MegaLabel>("Label");
+        label.SetTextAutoSize(TimerLabel());
+        button.Visible = true;
+        button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ =>
+        {
+            HostSession.Current?.SetTimerPaused(!PartyGameplay.TimerPaused);
+            label.SetTextAutoSize(TimerLabel());
+        }));
+    }
+
     static void ReadyPostfix(NPauseMenu __instance)
     {
         try
@@ -60,6 +83,7 @@ public sealed class PauseMenuAdapter : GameAdapter
             container.MoveChild(button, saveAndQuit.GetIndex());
             button.GetNode<MegaLabel>("Label").SetTextAutoSize("Edit roster");
             button.Visible = true;
+            if (PartyGameplay.TurnTimerSeconds > 0) AddTimerButton(container, saveAndQuit);
 
             string folder = Path.GetFileName(partyDir);
             button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ =>

@@ -4,6 +4,7 @@
 #
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Autopilot      host + 4 clients, all play themselves
 #   -Shots saves screenshots from the host and client 1 (spikes/logs/<run>/shots-<name>/)
+#   -PartyEnemyHealth x / -PartyTurnTimer s write the party's own settings; -Idle 2,3 makes clients 2 and 3 idle in combat
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Manual 1       client 1 is played by a person (no autopilot)
 #   tools/party-test.ps1 -Run smoke5 -Continue                   same party and seats again (rejoin with saved tokens)
 #   tools/party-test.ps1 -Run fast -Clients 4 -Autopilot -EnemyHp 0.1   enemies at 10% HP on every process (short fights)
@@ -25,6 +26,8 @@ param(
     [int]$KillTurn = 0,
     [string]$EnemyHp = "",
     [string]$PartyEnemyHealth = "",
+    [int]$PartyTurnTimer = -1,
+    [int[]]$Idle = @(),
     [int]$HostTimeoutSeconds = 90
 )
 $ErrorActionPreference = "Stop"
@@ -64,14 +67,15 @@ foreach ($id in @(1) + (1..$Clients | ForEach-Object { 1000 + $_ })) {
 
 # -PartyEnemyHealth x: write the party's own enemyHealthMultiplier into its party.json before the host
 # opens it (the host then sends it to every client). Run names are lower-case, so the folder is the name.
-if ($PartyEnemyHealth) {
+if ($PartyEnemyHealth -or $PartyTurnTimer -ge 0) {
     $partyDir = Join-Path $env:APPDATA (Join-Path "SlayTheSpire2" (Join-Path "mods" (Join-Path "SpireParty" (Join-Path "parties" $Party.ToLowerInvariant()))))
     New-Item -ItemType Directory -Force $partyDir | Out-Null
     $partyFile = Join-Path $partyDir "party.json"
     $json = if (Test-Path $partyFile) { Get-Content $partyFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ name = $Party } }
-    $json | Add-Member -NotePropertyName enemyHealthMultiplier -NotePropertyValue ([double]::Parse($PartyEnemyHealth, [Globalization.CultureInfo]::InvariantCulture)) -Force
+    if ($PartyEnemyHealth) { $json | Add-Member -NotePropertyName enemyHealthMultiplier -NotePropertyValue ([double]::Parse($PartyEnemyHealth, [Globalization.CultureInfo]::InvariantCulture)) -Force }
+    if ($PartyTurnTimer -ge 0) { $json | Add-Member -NotePropertyName turnTimerSeconds -NotePropertyValue $PartyTurnTimer -Force }
     [IO.File]::WriteAllText($partyFile, ($json | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding $false))   # no BOM
-    Write-Host "party.json: enemyHealthMultiplier = $PartyEnemyHealth"
+    Write-Host "party.json updated (enemy health: $PartyEnemyHealth, turn timer: $PartyTurnTimer)"
 }
 # A fresh run starts from a fresh log per process; -Continue keeps old logs as <name>-<n>.log.
 function Get-LogPath([string]$name) {
@@ -135,8 +139,10 @@ for ($n = 1; $n -le $Clients; $n++) {
     $tokenFile = Join-Path $runDir "token-$seat.txt"
     if (-not $Continue -and (Test-Path $tokenFile)) { Remove-Item $tokenFile }
     $auto = $Autopilot -and -not ($Manual -contains $n)
-    $clientPid = Start-Game $seat @("--clientId=$(1000 + $n)", "--spireparty-join=127.0.0.1,$seat,,C$n",
-        "--spireparty-tokenfile=`"$tokenFile`"") $auto
+    $extra = @("--clientId=$(1000 + $n)", "--spireparty-join=127.0.0.1,$seat,,C$n")
+    if ($Idle -contains $n) { $extra += "--spireparty-idle" }
+    $clientPid = Start-Game $seat ($extra + @(
+        "--spireparty-tokenfile=`"$tokenFile`"")) $auto
     $pids[$seat] = $clientPid
     Start-Sleep -Seconds 2
 }

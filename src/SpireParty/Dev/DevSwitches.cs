@@ -7,6 +7,7 @@ namespace SpireParty.Dev;
 /// command line, and the autopilot only acts during a SpireParty session.
 ///   --spireparty-light            small window, 15 fps cap, muted (runtime only; no settings written)
 ///   --spireparty-autopilot        this client plays its own seat (synced actions and UI clicks only)
+///   --spireparty-idle             with --spireparty-autopilot: in combat do nothing (the turn timer has to end the turn)
 ///   --spireparty-shots=&lt;dir&gt;      save a PNG of the game's viewport whenever the screen changes
 ///   --spireparty-expect=N         with --spireparty-autopilot on the host: ready only once N players are in the lobby (default 2)
 ///   --spireparty-tokenfile=&lt;path&gt;  a test seat stores its new token here (no popup) and joins with it next time
@@ -18,6 +19,9 @@ public static class DevSwitches
 {
     public static bool Light => CommandLineHelper.HasArg("spireparty-light");
     public static bool Autopilot => CommandLineHelper.HasArg("spireparty-autopilot");
+
+    /// <summary>--spireparty-idle: with the autopilot, play no cards and never end a combat turn (turn timer and AFK tests).</summary>
+    public static bool Idle => CommandLineHelper.HasArg("spireparty-idle");
 
     /// <summary>--spireparty-expect=N: an autopilot host readies only once N players are in the lobby.</summary>
     public static int ExpectPlayers =>

@@ -25,6 +25,9 @@ public sealed class ControlClient : IDisposable
     /// <summary>The host sent new seat names. Raised on a background thread.</summary>
     public event Action<Roster>? RosterReceived;
 
+    /// <summary>Raised on a background thread when the host pauses or resumes the turn timer.</summary>
+    public event Action<TimerPause>? TimerPauseReceived;
+
     public Welcome Welcome { get; }
 
     ControlClient(TcpClient client, NetworkStream stream, Welcome welcome, TimeSpan timeout)
@@ -94,6 +97,11 @@ public sealed class ControlClient : IDisposable
                 if (message == null) { End("connection lost"); return; }
                 Interlocked.Exchange(ref _lastSeenTicks, DateTime.UtcNow.Ticks);
                 if (message is Bye bye) { End(bye.Reason.Length > 0 ? bye.Reason : "host closed the party"); return; }
+                if (message is TimerPause pause)
+                {
+                    try { TimerPauseReceived?.Invoke(pause); }
+                    catch (Exception e) when (e is not OperationCanceledException) { /* a handler bug must not drop the channel */ }
+                }
                 if (message is Roster roster)
                 {
                     try { RosterReceived?.Invoke(roster); }

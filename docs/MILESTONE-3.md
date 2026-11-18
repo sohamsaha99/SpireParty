@@ -93,11 +93,11 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] Welcome carries enemy health, turn timer and AFK strikes; clients apply them for the session only (`Core/PartyGameplay`). The mode is added with the mode picker (3.9).
 - [x] Unit tests: codec, missing keys, out-of-range values. In game (user, party `hp15`): Settings saved enemy health ×1.25 and turn timer 30 s with a backup; a host and a client then both logged those values.
 
-### 3.7 Turn timer
-- [ ] `Core/TurnTimer` (pure): start, warning at 10 s, expire, pause, resume; clock passed in. Unit-tested.
-- [ ] `TurnTimerAdapter`: starts when the local player can act after the enemy turn; ring on the End Turn button with the 10 s warning; at zero the client ends its own turn; waits while a mandatory choice is open. Skips dead players and turns already ended.
-- [ ] Host pause and resume from the pause menu, broadcast over the control channel.
-- [ ] Automated: a client with a dev switch that never ends its turn; the log shows the timer ending it.
+### 3.7 Turn timer — done 2026-11-18 (pause and resume left for the gate)
+- [x] `Core/TurnTimer` (pure): start, warning at 10 s, expire, pause, resume; clock passed in. Unit-tested.
+- [x] `UI/TurnTimerView` (a per-frame check, no game patch): starts when the local player can act on a new turn; a countdown above the End Turn button (a number instead of the design's ring), red for the last 10 s; at zero it presses the player's own End Turn button (`CallReleaseLogic`); waits while a card selection screen or hand selection is open, not for other overlays. Skips dead players and ended turns. Raises "timed out" and "ended by the player" for 3.8. Seen by the user: countdown, red at 10 s, turn ends at 0.
+- [x] Host pause and resume: "Pause turn timer" / "Resume turn timer" in the host's pause menu, broadcast as `timerPause`; the welcome carries the paused state for late joiners. Unit-tested codec; not yet tried in game (gate).
+- [x] Automated: a client with a dev switch that never ends its turn; the log shows the timer ending it. `--spireparty-idle` (`party-test.ps1 -Idle`); run `tt3`: the idle client's turns ended by the timer in three fights, clean logs.
 
 ### 3.8 AFK auto-pass
 - [ ] `Core/AfkState` (pure, unit-tested): strikes, mark, clear on input, strikes reset when the player ends a turn themselves.

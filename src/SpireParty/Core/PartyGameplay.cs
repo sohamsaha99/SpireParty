@@ -27,7 +27,10 @@ public static class PartyGameplay
         AfkStrikes = Math.Clamp(afkStrikes, 1, 5);
     }
 
-    public static void Reset() => Set(1m);
+    /// <summary>The host paused the turn timer for everyone.</summary>
+    public static bool TimerPaused { get; set; }
+
+    public static void Reset() { Set(1m); TimerPaused = false; }
 
     /// <summary>Forgiving: anything outside 0.5–3.0 is clamped (as party.json's parser does).</summary>
     public static decimal ClampEnemyHealth(decimal value) => Math.Clamp(value, MinEnemyHealth, MaxEnemyHealth);

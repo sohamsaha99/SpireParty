@@ -30,6 +30,14 @@ public sealed class HostSession
 
     public static HostSession? Current { get; private set; }
 
+    /// <summary>Pauses or resumes the turn timer for everyone (host's pause menu). Main thread.</summary>
+    public void SetTimerPaused(bool paused)
+    {
+        PartyGameplay.TimerPaused = paused;
+        Server.Broadcast(new TimerPause(paused));
+        Log.Info($"{ModEntry.LogTag} turn timer {(paused ? "paused" : "resumed")} for everyone");
+    }
+
     readonly PartyStore _store;
     readonly string _folder;
     readonly PartyFile _party;
@@ -224,7 +232,8 @@ public sealed class HostSession
                 unlocks?.Mode ?? PartyUnlocks.Everything, 2, names,
                 mirror ? PartyUnlocks.ToJson(unlocks!.Unlocks) : null,
                 mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0,
-                PartyGameplay.EnemyHealthMultiplier, PartyGameplay.TurnTimerSeconds, PartyGameplay.AfkStrikes);
+                PartyGameplay.EnemyHealthMultiplier, PartyGameplay.TurnTimerSeconds, PartyGameplay.AfkStrikes,
+                PartyGameplay.TimerPaused);
         }
     }
 

@@ -48,4 +48,13 @@ public class PartySettingsTests
             """{"type":"welcome","playerId":7000002,"seatId":"ravi","party":"gate","unlocks":"everything"}""")));
         Assert.Equal((0, 2, 1m), (old.TurnTimerSeconds, old.AfkStrikes, old.EnemyHealthMultiplier));
     }
+
+    [Fact]
+    public void TimerPause_AndWelcomePausedFlag_RoundTrip()
+    {
+        Assert.True(Assert.IsType<TimerPause>(ControlCodec.Decode(ControlCodec.Encode(new TimerPause(true)).AsSpan(4))).Paused);
+        Assert.False(Assert.IsType<TimerPause>(ControlCodec.Decode(ControlCodec.Encode(new TimerPause(false)).AsSpan(4))).Paused);
+        var w = new Welcome(7000002, "ravi", "gate", null, "everything", 2, TimerPaused: true);
+        Assert.True(Assert.IsType<Welcome>(ControlCodec.Decode(ControlCodec.Encode(w).AsSpan(4))).TimerPaused);
+    }
 }

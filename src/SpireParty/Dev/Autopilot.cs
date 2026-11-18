@@ -178,7 +178,7 @@ public static class Autopilot
         // 4. Combat turn.
         if (CombatManager.Instance is { IsInProgress: true } combat)
         {
-            await PlayTurn(me, combat);
+            if (!DevSwitches.Idle) await PlayTurn(me, combat);   // --spireparty-idle: leave combat turns to the timer
             return;
         }
         _lastTurnPlayed = 0;

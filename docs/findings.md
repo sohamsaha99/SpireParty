@@ -605,3 +605,11 @@ The game scales only enemy HP, block and some powers with the number of players;
 - Party → **Settings** edits max players (2–8), enemy health (×0.5–3.0), turn timer (off, 30–90 s) and AFK strikes (1–5) through `PartyEditor.SaveSettings` → `RosterCommit.Write` (backup first, named after the change, e.g. "settings: enemy health ×1.25, turn timer 30 s"). Max players below the saved run's player count is refused. A hand-edited enemy health that is not in the list is kept as an extra choice, so opening and saving never changes it.
 - The welcome carries `enemyHealthMultiplier`, `turnTimerSeconds` and `afkStrikes`; missing keys mean the defaults (1, off, 2), out-of-range values are clamped or reset to them on the client.
 - Checked in game (user, party `hp15`): saved ×1.25 and 30 s; host and client then both logged "enemy health 1.25, turn timer 30 s, AFK after 2".
+
+## Turn timer (task 3.7, 2026-11-18)
+
+- No game patch: `UI/TurnTimerView` checks every frame whether the local player can act (`PlayerCombatState.Phase == Play`, turn not ended, alive) on a new turn (combat state plus turn number, since turn numbers restart each fight).
+- At zero it calls `NCombatRoom.Instance.Ui.EndTurnButton.CallReleaseLogic()`, exactly what a click does; that does nothing while a card is still being played (`CanTurnBeEnded`), so the timer presses again every 1.5 s until the turn has ended. It waits while an `ICardSelectionScreen` is on top (the combat card-grid and choose-a-card screens) or the hand is in `SimpleSelect`/`UpgradeSelect`; other overlays (e.g. a pile view) do not hold it up.
+- The countdown is a `Label` added to the End Turn button (a ring would need a custom drawn node type, which a mod cannot easily register).
+- When a fight ends during a timed turn, that turn counts neither as timed out nor as ended by the player (so a fight won by others does not reset an AFK count).
+- Run `tt3` (3 autopilot players, client 2 idle, timer 30 s): the idle client's turn was ended by the timer in three fights; all logs clean. The user saw the countdown, the red last 10 s and the turn ending at zero.
