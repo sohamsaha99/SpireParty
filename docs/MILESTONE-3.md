@@ -140,7 +140,11 @@ I run every command and the automated scenarios first; they must pass before you
 3. **Stuck player:** I kill one client mid-combat. Host: pause → Edit roster → bench it → Continue. ✔ The room restarts with seven, and its rejoin is refused as benched.
 4. **Finish:** ✔ the log checker and profile hashes clean; vanilla co-op through Steam still caps at 4 and uses the Steam lobby; `dotnet test` passes.
 
+**Result (2026-11-18): passed** (findings → "M3 Windows gate"). Automated: every scenario including `act1-8`. With the user: readability fine; timer, AFK and pause as listed; stuck player benched and refused on rejoin; logs clean, 416 identical checksums on all 8. Not tried: an ally-targeted potion. Profile: only the game's own one-time multiplayer-warning flag on a fresh test profile, written before the join.
+
 ## Cross-OS gate
+
+**Skipped for M3** (user, 2026-11-18: "check only Windows").
 
 As in M2: I copy the DLL to the laptop over Tailscale SSH and read its logs; nothing is installed there. The laptop's game window must stay visible (a hidden window stalls the party, findings → M2).
 
