@@ -1,22 +1,24 @@
 # SpireParty — STS2 Multiplayer Mod Design Document
 
-Last updated: 2026-11-18 · Source of truth: the Claude Doc this was exported from.
+Last updated: 2026-11-19 · Originally exported from a Claude Doc; this file is now the source of truth.
+
+**Browser seats removed from scope (user, 2026-11-19).** Every player runs their own copy of the game. Browser seats (seat processes on the host streamed to a browser) are deferred past the first full release; see "Browser seats (deferred)" below. Releases are tagged `v0.x.y`.
 
 ## Overview and goals
 
-SpireParty is one C# mod for Slay the Spire 2 that lets up to 8 friends play a single co-op run, each either from their own copy of the game or from a browser seat hosted on the host's PC, with the party roster changeable between combats.
+SpireParty is one C# mod for Slay the Spire 2 that lets up to 8 friends play a single co-op run, each from their own copy of the game, with the party roster changeable between combats.
 
 The mod has three user-facing goals:
 
-1. **Mixed party, all remote.** Friends join from outside the host's home either with their own copy (plus this mod) or from a browser with nothing installed. Everyone reaches the host through a mesh VPN (Tailscale or NordVPN Meshnet).
+1. **All remote.** Friends join from outside the host's home with their own copy plus this mod. Everyone reaches the host through a mesh VPN (Tailscale or NordVPN Meshnet).
 2. **Up to 8 players** in one run, up from the vanilla 4 (lowered from 10 on 2026-11-18 by the user: 8 slots fit in 3 bits, one more than the game's 2-bit slot field, and 8 game processes fit on one PC for testing).
 3. **Join and leave mid-run.** At a safe point the host saves, quits, edits the roster in-game and reloads. Players are identified by party-chosen seat IDs, never by Steam account.
 
 Success criteria for v1:
 
-- An 8-player run reaches the Act 3 boss with at least 2 browser seats and 2 remote native players.
+- An 8-player run reaches the Act 3 boss with at least 2 remote players.
 - One player leaves and one new player joins during that run without corrupting the save.
-- A native friend installs exactly one mod; a browser friend installs nothing.
+- A friend installs exactly one mod.
 
 ## Scope and non-goals
 
@@ -26,10 +28,10 @@ v1 ships the smallest version of each goal that a group of friends can actually 
 | --- | --- | --- |
 | Networking | Direct connect (game's ENet transport) over the mesh VPN | Steam lobbies and invites for SpireParty runs; public-internet hosting; mixing Steam and direct-connect players in one run |
 | Player count | Cap raised to 8; layouts fixed for 5 to 8 | Above 8 |
-| Pacing and AFK | In combat: optional turn timer and AFK auto-pass. Anywhere: the host benches a stuck player through the roster editor. Browser-seat handoff (M4) | Waiting-on list and nudge (the game already shows who has not ended their turn); vote to kick; AFK handling outside combat (events, shops, votes, rewards); another player playing an AFK native seat's cards; vote timer |
+| Pacing and AFK | In combat: optional turn timer and AFK auto-pass. Anywhere: the host benches a stuck player through the roster editor | Waiting-on list and nudge (the game already shows who has not ended their turn); vote to kick; AFK handling outside combat (events, shops, votes, rewards); another player playing an AFK native seat's cards; vote timer |
 | Saves and progress | Party saves in SpireParty's own folder; profile saves and progress never touched | Steam Cloud sync of party saves |
 | Game modes | Standard, every ascension level, custom, daily, Blitz and Dread | Daily leaderboard submission; achievements from party runs |
-| Browser seats | Video streaming of a seat instance to a desktop browser, mouse and keyboard | Scene-sync renderer (CouchCoop style); phone touch UI; audio |
+| Browser seats | None: every player runs the game | Video streaming of a seat instance to a browser (deferred 2026-11-19); scene-sync renderer; phone UI |
 | Roster | Join, leave, bench and restore at safe points via save, quit, reload | Live join during combat or mid-event |
 | Identity | Party-chosen seat IDs; one roster per run | Accounts, passwords, cross-run player profiles |
 | Host platform | Windows and Linux hosts and clients, one build | macOS (code kept portable, untested) |
@@ -39,34 +41,28 @@ v1 ships the smallest version of each goal that a group of friends can actually 
 
 The design is shaped by five fixed constraints; each one rules out a simpler alternative.
 
-1. **One mod, nothing else.** A native friend installs a single `SpireParty` folder. No BaseLib or other library mods as separate installs: anything needed is compiled into SpireParty's own DLL. Browser friends install nothing.
+1. **One mod, nothing else.** A friend installs a single `SpireParty` folder. No BaseLib or other library mods as separate installs: anything needed is compiled into SpireParty's own DLL.
 2. **Everyone is remote, on a mesh VPN.** Every friend joins from outside the host's home through Tailscale or NordVPN Meshnet. Nothing is exposed to the public internet, so no port forwarding and no public HTTPS certificates are needed.
 3. **Gameplay mod, exact version match.** Since game patch 0.99.1 the mod manifest has an `affects_gameplay` field; [when it is false the mod is not checked against the host's mod list](https://egw.news/gaming/news/33197/slay-the-spire-2-caps-hp-at-nearly-a-billion-crush-CCZa_ZVwO). SpireParty changes player count and save handling, so it must declare `affects_gameplay: true`, and every native player needs the identical version. It should also avoid registering new game content, because changes to the game's model database [alter a hash used in multiplayer validation](https://github.com/Alchyr/BaseLib-StS2/issues/172).
 4. **Early Access churn.** The game is [frequently updated in ways that break mods](https://github.com/Alchyr/ModTemplate-StS2/wiki/). Networking, lobby and save code are the most fragile areas to patch, so every patch site is isolated behind a small adapter layer (see Risks).
-5. **No monetization, no asset redistribution.** Mods [may accept donations but may not otherwise be monetized](https://github.com/tfoxy/sts2-couch-coop) under Mega Crit's content policy. Browser seats stream frames from the host's own installation; no game files leave the host. Keep the browser side private to the friend group.
+5. **No monetization, no asset redistribution.** Mods [may accept donations but may not otherwise be monetized](https://github.com/tfoxy/sts2-couch-coop) under Mega Crit's content policy. SpireParty ships no game files.
 
 Host and clients may run Windows or Linux; neither OS is privileged (see Cross-platform design). macOS is not tested in v1.
 
 ## System architecture
 
-Everything runs on the host PC except native friends' own games; all of them meet in one game session that the host's game owns.
+Every friend runs their own game; all of them meet in one game session that the host's game owns.
 
 ```mermaid
 flowchart LR
-  NF["Native friend<br/>own copy + SpireParty<br/>joins by host mesh IP"]
-  BF["Browser friend<br/>nothing installed<br/>claims a seat with a token"]
+  NF["Friend<br/>own copy + SpireParty<br/>joins by host mesh IP"]
   subgraph HOST["Host PC"]
-    HG["Host game + SpireParty<br/>owns the run, lobby and roster editor<br/>web lobby server for browser seats<br/>handshake and seat tokens"]
-    SP["Seat processes, up to 7<br/>one per browser friend<br/>isolated profile each"]
+    HG["Host game + SpireParty<br/>owns the run, lobby and roster editor<br/>handshake and seat tokens"]
     PS[("Party store<br/>party.json, run.save<br/>benched, backups")]
   end
-  NF -- "ENet UDP 33771 (mesh VPN)" --> HG
-  BF -- "HTTP, WebSocket (mesh VPN)" --> HG
-  SP <-- "game: 127.0.0.1<br/>frames, input" --> HG
+  NF -- "ENet UDP 33771 + TCP 33771 handshake (mesh VPN)" --> HG
   HG <-- "read, write" --> PS
 ```
-
-Native friends run the game themselves. Browser friends only see and steer a seat process, which joins the run like any other client over 127.0.0.1, so the game cannot tell the two kinds apart.
 
 ## Networking and transport
 
@@ -74,7 +70,7 @@ All players, local and remote, connect to the host over the game's own ENet/UDP 
 
 The game already contains this transport. Existing LAN mods [reuse the vanilla ENet/UDP room creation and join flow](https://github.com/murongyueyu/sts2-lan-coop), and DirectConnectIP listens on [UDP 33771 by default](https://github.com/TasteSteak/sts2-DirectConnectIP-Mods/blob/master/README.md). SpireParty only needs to expose it in the menus and add its own handshake.
 
-**Addresses.** The host listens on UDP 33771 on all interfaces. Remote friends connect to the host's Tailscale IP (100.x.y.z) or MagicDNS name, or its NordVPN Meshnet IP. Browser seats on the host connect to 127.0.0.1. Nobody forwards ports.
+**Addresses.** The host listens on UDP 33771 on all interfaces. Remote friends connect to the host's Tailscale IP (100.x.y.z) or MagicDNS name, or its NordVPN Meshnet IP. Nobody forwards ports.
 
 **Menu changes.** The multiplayer menu gets two entries:
 
@@ -103,7 +99,7 @@ In vanilla multiplayer the save keys each player by a numeric ID that comes from
 | Player ID | `7000003` | Assigned by host once, never reused in this party; this is what the save stores |
 | Token | `amber-otter-41` | Shown once to the seat's owner; required to claim the seat again |
 | Display name | Ravi | Shown in game UI instead of player IDs; set by the player when joining, or renamed by the host |
-| Kind | native or browser | Browser seats are launched by the host |
+| Kind | native | Always native; the `browser` value is kept in the file format for the deferred browser seats |
 | State | active, benched, empty | Benched seats keep their run state aside (see Join and leave) |
 | Character | Ironclad | Fixed once the seat joins the run |
 
@@ -133,10 +129,9 @@ AFK handling is deliberately simple (decided 2026-11-18 by the user): an absent 
 | --- | --- | --- | --- |
 | 1. Turn timer | Timer reaches zero | Player's own client ends the turn | Low |
 | 2. AFK auto-pass (combat only) | 2 timed-out turns in a row (`afkStrikes`) | Seat marked AFK: its turns end at once instead of after the timer; any input from the player clears the mark | Low |
-| 3. Browser-seat handoff (M4) | Host action | Host resets a browser seat's token so another friend can take over that seat immediately; the seat process keeps running, so nothing is lost | Low |
-| 4. Bench | Host action, any time | **Edit roster** in the pause menu: Save and Quit, bench the seat, Continue. The party replays the current room without them. Also the answer to a frozen or disconnected game | Done in M2 |
+| 3. Bench | Host action, any time | **Edit roster** in the pause menu: Save and Quit, bench the seat, Continue. The party replays the current room without them. Also the answer to a frozen or disconnected game | Done in M2 |
 
-**Outside combat.** Map votes, shared events, treasure, rest sites and rewards wait for every player, with no timeout in the game. SpireParty adds nothing there: the party sees who is missing and the host uses step 4.
+**Outside combat.** Map votes, shared events, treasure, rest sites and rewards wait for every player, with no timeout in the game. SpireParty adds nothing there: the party sees who is missing and the host uses step 3.
 
 **Deferred.** A waiting-on list, nudge, vote to kick, AFK seats answering votes or skipping rewards, and a vote timer. Letting the host or another native player play an AFK native seat's cards needs the host to submit that player's actions. DirectConnectIP shows it can be done, through its [offline player takeover](https://github.com/TasteSteak/sts2-DirectConnectIP-Mods/blob/master/README.md), but it touches action sync, so it waits until after v1.
 
@@ -212,48 +207,28 @@ RemoveMultiplayerPlayerLimit is the reference. It supports [8 players by default
 
 **Pacing.** Turns are simultaneous, so an 8-player turn ends when the slowest player ends theirs. The optional turn timer and AFK auto-pass (see Turn timer and AFK protection) keep one slow or absent player from stalling the other seven.
 
-## Host seats and web client
+## Browser seats (deferred)
 
-Each browser player gets a dedicated game process on the host that captures its own rendered frames and receives that player's input directly, so the host never captures windows or moves the real mouse.
+Deferred past the first full release (user, 2026-11-19): every player runs their own copy of the game, which needs no streaming and puts no extra load on the host.
 
-CouchCoop proves the process model: [the host launches a separate copy of the game for each browser player and connects it to the session](https://github.com/tfoxy/sts2-couch-coop), measured at [roughly 20% more CPU and 50% more RAM per extra player](https://github.com/tfoxy/sts2-couch-coop). SpireParty differs in what the browser receives: video frames instead of a reconstructed scene, which avoids writing a second renderer.
-
-**Seat process.** The host mod launches the game again with a seat argument (`--spireparty-seat=ravi`). In seat mode, SpireParty:
-
-- points the game at an isolated profile folder for that seat, so seats never share settings or saves;
-- skips menus and connects to 127.0.0.1 as that seat;
-- renders at 1280x720, capped at 30 fps, with audio muted;
-- runs a small capture loop that reads the game's own viewport image and hands frames to the encoder;
-- turns browser input into the game's own input events in-process, so 7 seats never fight over one OS cursor.
-
-**Streaming, in two steps.**
-
-1. *MVP:* JPEG frames over a WebSocket, encoded with Godot's built-in JPEG encoder so no native libraries are needed, sent only when the frame changed, plus input messages back. Simple to build and debug; expect a few megabytes per second per seat.
-2. *Target:* WebRTC video (VP8 or H.264) with a data channel for input, using a managed C# WebRTC library bundled in the mod folder. Roughly 2 to 3 Mbit/s per seat; needed if the host's upload cannot carry the MVP for 7 seats.
-
-**Web lobby.** The host mod embeds a small HTTP and WebSocket server that runs on plain sockets, bound only to the mesh-VPN interface. It avoids Windows' HttpListener, which needs admin rights or a URL reservation to listen on a non-localhost address. It serves one page: party name, list of browser seats, a token box to claim a seat, then the seat view in a canvas that scales to the browser window. Desktop browsers with mouse and keyboard are the target; phones are out of scope.
-
-**To verify early:** how a second game process behaves with Steam on the same account (CouchCoop shows it can be done), and whether reading the viewport every frame costs too much with 7 seats running.
+The deferred plan, kept for reference: the host launches one extra game process per browser player (`--spireparty-seat=<id>`, isolated profile, joins over 127.0.0.1, as [CouchCoop](https://github.com/tfoxy/sts2-couch-coop) does) and streams it to a browser. Plain JPEG frames over a WebSocket would need roughly 10 to 18 Mbit/s per seat at 720p and 15 fps, too much for most home uploads with several remote seats. The better option found is H.264 sent over the same WebSocket and decoded in the browser with WebCodecs (estimated 0.5 to 2 Mbit/s per seat). WebCodecs needs a secure origin, which `tailscale serve` provides. The mesh VPN already does NAT traversal, so full WebRTC is not needed. Measure with a spike before building.
 
 ## Cross-platform design
 
-Windows and Linux are equal hosts and clients from v1: the same SpireParty download hosts, joins and runs browser seats on either OS, and all OS-specific code sits in one small platform layer.
+Windows and Linux are equal hosts and clients: the same SpireParty download hosts and joins on either OS, and all OS-specific code sits in one small platform layer.
 
-Most of SpireParty is OS-neutral already. The mod is managed .NET code loaded by the game, frames are read from the game's own viewport rather than captured from OS windows, and input is injected as game events rather than OS mouse events. What remains is listed below.
+The mod is managed .NET code loaded by the game, so one DLL runs on every OS the game supports. What remains is listed below.
 
 | Concern | Windows | Linux | How SpireParty handles it |
 | --- | --- | --- | --- |
 | Game data folder (build references) | `data_sts2_windows_x86_64` | `data_sts2_linuxbsd_x86_64` | [Both paths are known to the community template](https://www.nuget.org/packages/S2SModTemplate.Templates); one DLL ships for both |
-| SpireParty data folder | `%APPDATA%\SlayTheSpire2\mods\SpireParty\` | [`~/.config/SlayTheSpire2/mods/...` by default](https://sts2.gg/mods/mod-372) | Always resolved through Godot's `user://` path, never hard-coded |
-| Launching seat processes | Game `.exe` | Game Linux binary | Path taken from the running game process |
-| Seat profile isolation | Separate user folder per seat | Separate user folder per seat | CouchCoop [already does this on both OSes](https://github.com/tfoxy/sts2-couch-coop) |
-| Video encoder (WebRTC step only; the MVP uses Godot's JPEG encoder) | win-x64 library | linux-x64 library | Both shipped in `native/`, loaded by runtime ID |
-| Firewall | Windows Defender Firewall rule | nftables or ufw rule | Documented for both; SpireParty never changes firewall settings itself |
+| SpireParty data folder | `%APPDATA%\SlayTheSpire2\mods\SpireParty\` | `~/.local/share/SlayTheSpire2/mods/SpireParty/` (findings, Fedora checkpoint) | Always resolved through Godot's `user://` path, never hard-coded |
+| Firewall | Windows Defender Firewall rule | firewalld, nftables or ufw rule | Documented for both; SpireParty never changes firewall settings itself |
 | File names | Case-insensitive | Case-sensitive | All file names lower-case; paths built with path APIs, no drive letters or backslashes |
 
-**Rule for the code.** No OS checks outside the platform layer. The layer exposes four things: data folder, seat-process launcher, encoder loader and firewall help text.
+**Rule for the code.** No OS checks outside the platform layer. The layer exposes the data folder and firewall help text.
 
-**Test matrix.** Every milestone gate is passed on Windows first, then twice across OSes: Windows hosting with a Linux client, then Linux hosting with a Windows client. M0 and M1 batch their Linux checks into one Fedora checkpoint (see Milestones). macOS code stays portable but is untested in v1.
+**Test matrix.** Every milestone gate is passed on Windows first, then twice across OSes: Windows hosting with a Linux client, then Linux hosting with a Windows client. M0 and M1 batch their Linux checks into one Fedora checkpoint (see Milestones). macOS code stays portable but is untested; the README gives macOS install steps without a guarantee.
 
 ## Join and leave mid-run
 
@@ -285,16 +260,13 @@ In Dread, a new player also starts with the Ascender's Banes the party has colle
 
 SpireParty ships as one folder in the game's `mods` directory with no declared mod dependencies; borrowed code is copied in and compiled into SpireParty's own DLL, with each source's license kept beside it.
 
-"One mod" means one folder and one manifest, not one file. Third-party .NET libraries and native encoder libraries sit inside that folder, so installing is still a single Workshop subscription or a single zip extract.
+"One mod" means one folder and one manifest, not one file. Any third-party .NET library would sit inside that folder (`lib/`), so installing is still a single zip extract. Today there are none.
 
 ```
 mods/SpireParty/
   SpireParty.json          manifest: affects_gameplay true, no dependencies
   SpireParty.dll           all SpireParty code, including vendored mod code
-  lib/                     third-party .NET libraries (HTTP server, WebRTC)
-  native/                  encoder libraries per platform (WebRTC step only)
-  web/                     lobby page and seat viewer
-  LICENSE
+  LICENSE                  MIT (user, 2026-11-19)
   THIRD_PARTY_NOTICES.md   one entry per vendored source
 ```
 
@@ -310,7 +282,7 @@ mods/SpireParty/
 
 Code from projects without a confirmed license is studied, not copied; SpireParty reimplements that behavior itself. BaseLib and similar library mods are not used, so friends never install them.
 
-**Distribution.** A Steam Workshop item for native friends, plus a GitHub release zip with the same folder. The Workshop item lists no required items.
+**Distribution.** A GitHub release zip holding the `SpireParty` folder, built by `tools/package.ps1`; installation is manual (README). Releases are tagged `v0.x.y` (user, 2026-11-19; first release v0.1.0). Every player needs the same SpireParty version, because the game checks gameplay mods by exact version. A Steam Workshop item may follow later; it would list no required items.
 
 ## Security
 
@@ -318,11 +290,11 @@ The mesh VPN is the outer wall and seat tokens are the inner one: only party mem
 
 CouchCoop warns that on its LAN setup [anyone who can reach the join address can open the client and send game controls](https://github.com/tfoxy/sts2-couch-coop). SpireParty closes that gap in three layers.
 
-1. **Reachability.** The game port (UDP 33771) and the web server listen only on the mesh-VPN interface, and SpireParty drops traffic from source addresses outside the mesh range. An OS firewall rule scoped to that adapter backs this up (see Cross-platform design). In Tailscale, an access rule lets friends reach only those two ports on the host, nothing else on it; NordVPN Meshnet's per-device permissions should be set the same way.
-2. **Seat tokens.** Every claim, native or browser, needs the seat's token. Tokens are random, stored hashed in `party.json`, and failed attempts are rate-limited per address.
-3. **Narrow surface.** The web server serves only the lobby page, frames and input; it never reads arbitrary files. Browser input becomes game input events inside the seat process, never OS-level mouse or keyboard input.
+1. **Reachability.** The SpireParty handshake (TCP 33771) listens only on the mesh-VPN interface and loopback, and drops connections from source addresses outside the mesh range (100.64.0.0/10, used by both Tailscale and NordVPN Meshnet). The game's own ENet port (UDP 33771) cannot be joined without passing that handshake first. An OS firewall rule scoped to that adapter backs this up (see Cross-platform design). In Tailscale, an access rule lets friends reach only port 33771 on the host, nothing else on it; NordVPN Meshnet's per-device permissions should be set the same way.
+2. **Seat tokens.** Every claim needs the seat's token. Tokens are random, stored hashed in `party.json`, and failed attempts are rate-limited per address.
+3. **Narrow surface.** SpireParty opens no other ports and serves no files.
 
-**Transport encryption.** Mesh traffic is already encrypted end to end, so plain HTTP inside the mesh is acceptable for v1. If a browser feature needs a secure origin, Tailscale's built-in HTTPS serving for the host's tailnet name is the fallback.
+**Transport encryption.** Mesh traffic is already encrypted end to end.
 
 **Trust model.** Party members are trusted friends. A seat holder can do anything the game lets a player do, and the host can bench or remove any seat.
 
@@ -342,10 +314,7 @@ Every choice a group might want differently is a setting with a simple default: 
 | Catch-up max HP | party.json | Party's lowest | Match lowest, starter only |
 | Catch-up card rewards | party.json | 0 | 0 to 10 |
 | Game port | config.json | UDP 33771 | Any free port |
-| Web port | config.json | TCP 8771 | Any free port |
 | Listen address | config.json | Auto: the Tailscale or Meshnet interface | Any local address |
-| Browser seats | config.json | On | On, off |
-| Seat video | config.json | 1280x720, JPEG quality 70, at most 15 frames per second | Any |
 | Backups kept per party | config.json | 20 | 1 to 100 |
 | Divergence diagnostics kept | config.json | 10 (M3, task 3.12) | 1 to 100 |
 | Deleted parties kept | config.json (`deletedPartiesKept`) | 10 (user, 2026-11-18) | 1 to 100 |
@@ -353,9 +322,8 @@ Every choice a group might want differently is a setting with a simple default: 
 **Flexibility rules.**
 
 - A missing or empty settings file works: every key has a default, and unknown keys are ignored.
-- Each feature (browser seats, timer, AFK tools, catch-up) can be switched off without affecting the others.
+- Each feature (timer, AFK tools, catch-up) can be switched off without affecting the others.
 - Each game patch site sits behind its own adapter, so a game update breaks one adapter, not the mod.
-- Transport, streaming and HTTP code sit behind small interfaces, so WebRTC or a different server can replace the MVP pieces later.
 
 ## Risks and open questions
 
@@ -368,8 +336,6 @@ The biggest risk is not any single feature but game patches breaking networking 
 | A party run leaks a write into the normal profile | Medium | Block profile writes during party runs; test by hashing the profile folders before and after a full party run |
 | Bench or remove leaves dangling player references | Medium | Fail closed (see Join and leave); prototype this first |
 | Desync ("state divergence") with 8 players or after a roster edit | Medium | Roster edits only at safe points; identical mod version enforced by handshake; party settings that affect gameplay sent by the host; long soak tests at 8 |
-| 7 rendering seats overload the host | Medium | Measure in milestone 4; lower seat fps and resolution; cap browser seats |
-| Host upload too small for JPEG streaming | Medium | Move to WebRTC video |
 | Mega Crit ships official rejoin or larger parties | Low | Welcome it; retire the overlapping part |
 
 **Open questions.** Milestone 0 answers each one by reading the decompiled game. Until then, the design assumes the simplest answer and names the fallback if it turns out wrong.
@@ -387,7 +353,7 @@ The biggest risk is not any single feature but game patches breaking networking 
 | Can one player's state be saved and restored on its own? | Yes, it is a self-contained object | Copy the player's subtree of the save file |
 | Enemy health formula beyond 4 players? | Per-player formula that extends naturally | Clamp at the 4-player value, then apply the multiplier |
 | Code that assumes at most 4 players? | A few constants and layout arrays | Vendored RMP patches, then fix screens one by one |
-| Does a seat process need Steam? | No, as CouchCoop's seats show | Patch out Steam start-up in seat mode |
+| Does a seat process need Steam? (browser seats, deferred) | No, as CouchCoop's seats show | Patch out Steam start-up in seat mode |
 | ENet over a 1280-byte tunnel? | Works with defaults | Lower the MTU, or split large messages |
 | Where are save paths resolved? | One path helper | Patch each place that opens the co-op save |
 | What is written when a run ends? | A handful of save calls | Patch each one; prove with a folder-hash test |
@@ -416,7 +382,6 @@ Build in six milestones, starting with a research spike on the riskiest unknown,
 | Fedora checkpoint | Linux load check; deploy script on Linux; ENet over Tailscale; any M0 prototype that needed two machines | Act 1 over Tailscale with each OS as host |
 | M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add, open seats and token reset, display names, the unlock setting; fail-closed scan (the roster check needed no patch). Plan: `docs/MILESTONE-2.md` | Bench, restore and add survive a full act |
 | M3 · Eight players | Cap, layouts, turn timer and combat AFK auto-pass; enemy health formula charted; multiplier; game modes (Daily, Custom, Blitz, Dread) in party runs; automated test harness. Plan: `docs/MILESTONE-3.md` | An 8-player act with no desync, combat readable |
-| M4 · Browser seats | Seat processes, JPEG stream, lobby page; measure host CPU, GPU and upload with 7 seats | 3 browser seats play an act beside native friends |
-| M5 · Release | WebRTC if upload demands it; startup self-check; Workshop item and zip; third-party notices | All v1 success criteria met |
+| M4 · Browser seats | Deferred past the first full release (user, 2026-11-19); see "Browser seats (deferred)" | — |
+| M5 · Release | Startup self-check tested with a forced failure; release zip (`tools/package.ps1`) and GitHub releases tagged `v0.x.y`; README with install steps for Windows, macOS and Linux; MIT LICENSE; third-party notices; Workshop item optional | All success criteria met |
 
-M3 and M4 do not depend on each other and can run in parallel once M2's gate is passed.

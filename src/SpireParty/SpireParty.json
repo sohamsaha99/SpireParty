@@ -1,9 +1,9 @@
 {
   "id": "SpireParty",
   "name": "SpireParty",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "author": "SpireParty",
-  "description": "Co-op runs for up to 10 players over direct connect, with join and leave between encounters.",
+  "description": "Co-op runs for up to 8 players over direct connect (Tailscale or NordVPN Meshnet), with join and leave between encounters.",
   "dependencies": [],
   "has_pck": false,
   "has_dll": true,

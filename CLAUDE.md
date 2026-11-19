@@ -1,6 +1,6 @@
 # SpireParty — agent brief
 
-SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 8 friends play one co-op run, each from their own copy of the game or from a browser seat hosted on the host's PC, with join/leave between encounters and saves that are never tied to a Steam account.
+SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 8 friends play one co-op run, each from their own copy of the game, with join/leave between encounters and saves that are never tied to a Steam account.
 
 **The spec is `docs/DESIGN.md`. Read it before writing code.** When this file and the design disagree, ask the user. Start work with `docs/MILESTONE-0.md`.
 
@@ -10,7 +10,7 @@ SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 8 frie
 
 | Machine | Role | Notes |
 | --- | --- | --- |
-| Windows VM | Main dev box, primary host, browser-seat host | Has the stronger GPU. Steam copy of STS2. |
+| Windows VM | Main dev box, primary host | Has the stronger GPU. Steam copy of STS2. |
 | Linux laptop | Second host and "friend with own copy" client | Native Linux build of STS2, same Steam account. |
 
 - Both machines are on the same Tailscale tailnet. Connect by tailnet IP (100.x.y.z), never LAN IP.
@@ -50,15 +50,12 @@ src/SpireParty/
   ModEntry.cs                entry point; runs self-checks, then applies Harmony patches
   Core/                      settings (config.json, party.json), party store, roster logic, catch-up, AFK state machine
   Net/                       SpireParty handshake channel, heartbeat, transport interface (ENet adapter)
-  Seats/                     seat launcher, frame capture, input injection (seat mode)
-  Web/                       HTTP + WebSocket server on plain sockets, static file serving from web/
   Platform/                  the ONLY place with OS-specific code
   GameAdapters/              one class per Harmony patch site, each with a self-check
   UI/                        menus, roster editor, timer ring
   Dev/                       test-only dev switches: light client, autopilot, screenshots (inactive without a switch)
-web/                         lobby page and seat viewer (plain HTML/JS, no build step)
 tests/SpireParty.Tests/      unit tests for pure logic (no game needed)
-tools/                       deploy.ps1, deploy.sh, party-test.ps1, check-logs.ps1, check-update.ps1, hash-profile.ps1/.sh, scenarios/ (see docs/testing.md)
+tools/                       deploy.ps1, deploy.sh, package.ps1, party-test.ps1, check-logs.ps1, check-update.ps1, hash-profile.ps1/.sh, scenarios/ (see docs/testing.md)
 docs/                        DESIGN.md, MILESTONE-0.md, findings.md, game-version.md
 decompiled/                  decompiled game code — GITIGNORED, never committed
 ```
@@ -66,9 +63,10 @@ decompiled/                  decompiled game code — GITIGNORED, never committe
 ## Build, deploy, run
 
 1. `dotnet build -c Debug`
-2. `tools/deploy.ps1` (Windows) or `tools/deploy.sh` (Linux): copy `SpireParty.dll`, `SpireParty.json`, `lib/`, `web/`, licenses into `<install>/mods/SpireParty/`. Close the game first.
+2. `tools/deploy.ps1` (Windows) or `tools/deploy.sh` (Linux): copy `SpireParty.dll`, `SpireParty.json`, `lib/` (if any), licenses into `<install>/mods/SpireParty/`. Close the game first.
 3. Launch through Steam. Choose **Play Modded** if prompted. Check the log for the SpireParty startup line.
-4. Build output must be identical on both OSes (one DLL). Only `native/` (WebRTC step, later) differs per OS.
+4. Build output must be identical on every OS (one DLL).
+5. Release: bump the version in `SpireParty.csproj` and `SpireParty.json` (format `0.x.y`; never call it v1), run `tools/package.ps1` (tests, Release build, `dist/SpireParty-<version>.zip`), tag `v<version>` and attach the zip to a GitHub release.
 
 ## Testing
 

@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
-    <Version>0.0.1</Version>
+    <Version>0.1.0</Version>
     <!-- Keep the informational version clean (no +commit suffix) so it can be compared in the handshake. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
