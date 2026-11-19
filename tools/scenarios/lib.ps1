@@ -9,7 +9,9 @@ $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Tools = Join-Path $Root "tools"
 # Lines some scenarios expect: a host doing Save and Quit leaves clients sending for a moment.
 # Game log lines that change nothing (findings → M3, scenario runs): see docs/testing.md → Known pitfalls.
-$script:ExtraIgnore = @("is not connected!", "Tried to add hand for player", "] Reward set with id")
+# "back to pool": NodePool.Free's guard when a card node is freed twice while the game returns to the main menu after
+# Save and Quit; it only logs (docs/testing.md -> Known pitfalls).
+$script:ExtraIgnore = @("is not connected!", "Tried to add hand for player", "] Reward set with id", "back to pool")
 
 function Get-RunDir([string]$Run) { Join-Path $Root (Join-Path "spikes" (Join-Path "logs" $Run)) }
 

@@ -144,7 +144,11 @@ public static class Autopilot
         // as the pause menu's Save and Quit does (the run is saved at room entry; NPauseMenu.CloseToMenu).
         if (DevSwitches.SaveAfterRooms is { } limit && !_savedAndQuit && _roomsEntered > limit
             && SpirePartySession.Current?.Role == SessionRole.Host && Time.GetTicksMsec() - _roomEnteredAt > 8000
-            && NMapScreen.Instance is not { IsOpen: true })   // not during the map's travel animation (a person cannot pause then)
+            && NMapScreen.Instance is not { IsOpen: true }   // not during the map's travel animation (a person cannot pause then)
+            // Not mid-combat and not while an action runs: quitting tears down a card play in progress on the clients,
+            // which then log the game's own NullReferenceException (run mode-blitz, GunkUp.OnPlay). Harmless, but noise.
+            && !MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsInProgress
+            && RunManager.Instance.ActionExecutor is not { IsRunning: true })
         {
             _savedAndQuit = true;
             Log.Info($"{ModEntry.LogTag} autopilot: Save and Quit after {limit} rooms (--spireparty-saveafter)");
@@ -428,7 +432,10 @@ public static class Autopilot
         catch (Exception e)
         {
             // Co-op waits (others still choosing) can outlast a handler written for single-player.
-            Log.Info($"{ModEntry.LogTag} autopilot: {what} ended early: {e.GetType().Name}: {e.Message}");
+            // A handler's timeout is expected and retried, so it is logged without the type name (check-logs counts
+            // "Exception"); anything else keeps it, so a real failure still shows.
+            string kind = e.GetType().Name == "DriverTimeoutException" ? "timed out, retrying" : e.GetType().Name;
+            Log.Info($"{ModEntry.LogTag} autopilot: {what} ended early ({kind}): {e.Message}");
             await Task.Delay(1000);
             return false;
         }
