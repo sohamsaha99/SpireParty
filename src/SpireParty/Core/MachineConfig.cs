@@ -25,6 +25,8 @@ public sealed class MachineConfig
     public string ListenAddress { get; set; } = "auto";
     public bool BrowserSeats { get; set; } = true;
     public int BackupsKept { get; set; } = 20;
+    /// <summary>Divergence diagnostics bundles kept under mods/SpireParty/diagnostics (newest first).</summary>
+    public int DiagnosticsKept { get; set; } = 10;
     public List<RecentHost> RecentHosts { get; set; } = new();
 
     public static MachineConfig Parse(string? json, out List<string> warnings)
@@ -37,6 +39,7 @@ public sealed class MachineConfig
             ListenAddress = j.String("listenAddress", "auto").Trim(),
             BrowserSeats = j.Bool("browserSeats", true),
             BackupsKept = j.Int("backupsKept", 20, 1, 100),
+            DiagnosticsKept = j.Int("diagnosticsKept", 10, 1, 100),
         };
         if (c.ListenAddress.Length == 0) c.ListenAddress = "auto";
         foreach (var h in j.Objects("recentHosts"))
@@ -85,6 +88,7 @@ public sealed class MachineConfig
             ["listenAddress"] = ListenAddress,
             ["browserSeats"] = BrowserSeats,
             ["backupsKept"] = BackupsKept,
+            ["diagnosticsKept"] = DiagnosticsKept,
             ["recentHosts"] = new JsonArray(RecentHosts.Select(h => (JsonNode)new JsonObject
             {
                 ["address"] = h.Address,

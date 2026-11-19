@@ -15,9 +15,12 @@ namespace SpireParty.GameAdapters;
 /// <summary>
 /// Developer and test switches, like the game's own --fastmp. Ignored unless passed on the command line:
 ///   --spireparty-host=&lt;party&gt;                     open (or create) a party and host it
+///   --spireparty-mode=&lt;mode&gt;                      with --spireparty-host: the mode of a party it creates (standard, daily, custom, blitz, dread)
 ///   --spireparty-join=&lt;address&gt;,&lt;seat&gt;[,&lt;token&gt;[,&lt;name&gt;]]  join a party
-///   --spireparty-addseat=&lt;party&gt;,&lt;seat&gt;,&lt;character&gt;  add a seat and a new player to the party's saved run
-///       through the roster editor (backed up; the seat is open), then go on with --spireparty-host if also given
+///   --spireparty-roster=&lt;party&gt;,&lt;op&gt;,&lt;seat&gt;[,&lt;character&gt;][;...]  roster edits through the roster editor
+///       (backed up, refused with a reason like in the menus): bench, restore, add (with a character), reset (token),
+///       remove, backup (restore a backup by name, or "latest"); then go on with --spireparty-host if also given.
+///       A refused edit stops here (no hosting), so a test sees it at once.
 /// Postfix on NMainMenu.CheckCommandLineArgs; runs once per process.
 /// </summary>
 public sealed class DevLaunchAdapter : GameAdapter
@@ -41,21 +44,18 @@ public sealed class DevLaunchAdapter : GameAdapter
         Dev.DevSwitches.StartAll();
         bool host = CommandLineHelper.TryGetValue("spireparty-host", out string? party) && !string.IsNullOrWhiteSpace(party);
         bool join = CommandLineHelper.TryGetValue("spireparty-join", out string? target) && !string.IsNullOrWhiteSpace(target);
-        bool addSeat = CommandLineHelper.TryGetValue("spireparty-addseat", out string? addArgs) && !string.IsNullOrWhiteSpace(addArgs);
-        if (!host && !join && !addSeat) return;
+        bool roster = CommandLineHelper.TryGetValue("spireparty-roster", out string? rosterArgs) && !string.IsNullOrWhiteSpace(rosterArgs);
+        if (!host && !join && !roster) return;
         _done = true;
         MainThread.Ensure();
 
-        if (addSeat)
+        if (roster)
         {
-            try
+            string? error = RosterEdits(rosterArgs!);
+            if (error != null)
             {
-                Log.Info($"{ModEntry.LogTag} dev launch: addseat -> {AddSeat(addArgs!)}");
-            }
-            catch (Exception e)
-            {
-                Log.Error($"{ModEntry.LogTag} dev launch: addseat failed: {e}");
-                Popups.Message("SpireParty add seat", e.Message);
+                Log.Error($"{ModEntry.LogTag} dev launch: roster edit refused: {error}");
+                Popups.Message("SpireParty roster edit", error);
                 return;
             }
             if (!host && !join) return;
@@ -74,7 +74,7 @@ public sealed class DevLaunchAdapter : GameAdapter
         {
             var store = new PartyStore(PlatformInfo.SpirePartyDataDir);
             string folder = SeatRules.PartyFolderName(party);
-            if (!store.List().Contains(folder)) store.Create(party!);
+            if (!store.List().Contains(folder)) store.Create(party!, Dev.DevSwitches.Mode ?? PartyModes.Standard);
             string? error = HostSession.Start(folder, stack);
             if (error != null) Popups.Message("SpireParty Host", error);
             Log.Info($"{ModEntry.LogTag} dev launch: host \"{folder}\" -> {error ?? "ok"}");
@@ -90,19 +90,36 @@ public sealed class DevLaunchAdapter : GameAdapter
         _ = JoinAsync(address, seat, token, name, stack);
     }
 
-    /// <summary>&lt;party&gt;,&lt;seat&gt;,&lt;character&gt; through the roster editor; throws with the refusal.</summary>
-    static string AddSeat(string args)
+    /// <summary>Runs every --spireparty-roster edit in order; returns the first refusal (later edits are not run).</summary>
+    static string? RosterEdits(string args)
     {
-        string[] a = args.Split(',').Select(x => x.Trim()).ToArray();
-        if (a.Length != 3) throw new ArgumentException("--spireparty-addseat=<party>,<seat>,<character>");
+        var ops = RosterSwitch.Parse(args, out string? parseError);
+        if (parseError != null) return $"--spireparty-roster: {parseError}";
         string dataDir = PlatformInfo.SpirePartyDataDir;
         var store = new PartyStore(dataDir);
         var config = MachineConfig.Load(dataDir, out _);
-        var editor = new PartyEditor(store, new PartyBackups(store), SeatRules.PartyFolderName(a[0]), config.BackupsKept);
-        string? error = editor.Add(a[1], a[1], a[2], NewPlayer.ForEditor);
-        if (error != null) throw new InvalidOperationException(error);
-        var seat = editor.Seats(out _).First(s => s.SeatId == SeatRules.Normalize(a[1]));
-        return $"seat \"{seat.SeatId}\" ({seat.Character}): HP {seat.Hp}/{seat.MaxHp}, gold {seat.Gold}, open {seat.Open}";
+        foreach (var op in ops)
+        {
+            string folder = SeatRules.PartyFolderName(op.Party);
+            var editor = new PartyEditor(store, new PartyBackups(store), folder, config.BackupsKept);
+            string? undo = null;
+            string? error = op.Op switch
+            {
+                "bench" => editor.Bench(op.Arg),
+                "restore" => editor.Restore(op.Arg),
+                "add" => editor.Add(op.Arg, op.Arg, op.Character, NewPlayer.ForEditor),
+                "reset" => editor.ResetToken(op.Arg),
+                "remove" => editor.Remove(op.Arg),
+                "backup" => editor.RestoreBackup(op.Arg == "latest" ? editor.Backups().FirstOrDefault()?.Name ?? "" : op.Arg, out undo),
+                _ => "unknown op",
+            };
+            if (error != null) return $"{op.Op} {op.Arg} in \"{folder}\": {error}";
+            var seat = editor.Seats(out _).FirstOrDefault(s => s.SeatId == SeatRules.Normalize(op.Arg));
+            Log.Info($"{ModEntry.LogTag} dev launch: roster {op.Op} {op.Arg} in \"{folder}\" -> ok" +
+                     (seat == null ? "" : $" (seat {seat.SeatId}: {seat.Status}, {seat.Character}, HP {seat.Hp}/{seat.MaxHp}, gold {seat.Gold}, open {seat.Open})") +
+                     (undo == null ? "" : $" (undo backup {undo})"));
+        }
+        return null;
     }
 
     static async System.Threading.Tasks.Task JoinAsync(string address, string seat, string token, string name, NSubmenuStack stack)

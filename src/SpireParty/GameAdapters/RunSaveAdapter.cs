@@ -90,4 +90,7 @@ public static class Features_
 
     /// <summary>Parties of 5 to 8. Without it a party is capped at the vanilla 4 (WireFormatAdapter).</summary>
     public const string MoreThanFourPlayers = "More than 4 players";
+
+    /// <summary>Daily, Custom, Blitz and Dread parties. Without it parties are Standard only (GameModesAdapter).</summary>
+    public const string GameModes = "Game modes in parties";
 }

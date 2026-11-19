@@ -27,6 +27,7 @@ using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.Map;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Nodes.Screens.TreasureRoomRelic;
@@ -66,7 +67,8 @@ public static class Autopilot
 
     static readonly Dictionary<RoomType, IRoomHandler> RoomHandlers = new()
     {
-        [RoomType.Shop] = new ShopRoomHandler(DrainScreensUntil),
+        // Not AutoSlay's ShopRoomHandler: it buys without the purchase sync (SyncedShopHandler).
+        [RoomType.Shop] = new SyncedShopHandler(DrainScreensUntil),
     };
 
     // Per-room memory so a vote or a room action is sent once.
@@ -83,6 +85,8 @@ public static class Autopilot
     static bool _votedOnMap;
     static int _lastTurnPlayed;
     static NEventOptionButton? _lastEventClick;
+    static int _roomsEntered;
+    static bool _savedAndQuit;
 
     public static void Start()
     {
@@ -133,6 +137,19 @@ public static class Autopilot
             _roomEnteredAt = Time.GetTicksMsec();
             _votedOnMap = false;
             _lastEventClick = null;
+            _roomsEntered++;
+        }
+
+        // --spireparty-saveafter=N (host): Save and Quit once the N+1-th room of this process is entered and saved,
+        // as the pause menu's Save and Quit does (the run is saved at room entry; NPauseMenu.CloseToMenu).
+        if (DevSwitches.SaveAfterRooms is { } limit && !_savedAndQuit && _roomsEntered > limit
+            && SpirePartySession.Current?.Role == SessionRole.Host && Time.GetTicksMsec() - _roomEnteredAt > 8000
+            && NMapScreen.Instance is not { IsOpen: true })   // not during the map's travel animation (a person cannot pause then)
+        {
+            _savedAndQuit = true;
+            Log.Info($"{ModEntry.LogTag} autopilot: Save and Quit after {limit} rooms (--spireparty-saveafter)");
+            await MegaCrit.Sts2.Core.Nodes.NGame.Instance!.ReturnToMainMenu();
+            return;
         }
 
         // 1. Map vote, once per room. After Proceed the rewards screen stays under the open map.
@@ -279,40 +296,86 @@ public static class Autopilot
 
     static Node? _readiedScreen;
 
-    /// <summary>New-run lobby: pick a random character, then Embark (= ready). Load lobby: Embark.</summary>
+    /// <summary>
+    /// Any mode's lobby (new run: character select, Daily, Custom, Blitz, Dread; saved run: the load screens).
+    /// New run: pick a random character if the screen offers any, then Embark (= ready). Load lobby: Embark.
+    /// </summary>
     static async Task Lobby()
     {
         if (Engine.GetMainLoop() is not SceneTree tree) return;
-        Control? screen = FindAll<NCharacterSelectScreen>(tree.Root).FirstOrDefault(s => s.IsVisibleInTree());
-        screen ??= FindAll<NMultiplayerLoadGameScreen>(tree.Root).FirstOrDefault(s => s.IsVisibleInTree());
+        var screen = FindAll<NSubmenu>(tree.Root).FirstOrDefault(s => s.IsVisibleInTree()
+            && s is MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.IStartRunLobbyListener or MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.ILoadRunLobbyListener);
         if (screen == null || screen == _readiedScreen) return;
 
         // The host waits for the expected party, or the run would start with whoever is there.
         if (SpirePartySession.Current?.Role == SessionRole.Host)
         {
-            int present = screen switch
-            {
-                NCharacterSelectScreen cs => cs.Lobby?.Players.Count ?? 0,
-                _ => (HarmonyLib.AccessTools.Field(typeof(NMultiplayerLoadGameScreen), "_runLobby")?.GetValue(screen)
-                        as MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.LoadRunLobby)?.PlayerCount ?? 0,
-            };
-            if (present < DevSwitches.ExpectPlayers) return;
+            if (LobbyPlayerCount(screen) < DevSwitches.ExpectPlayers) return;
+            if (screen is MegaCrit.Sts2.Core.Nodes.Screens.CustomRun.NCustomRunScreen custom && !TickModifiers(custom)) return;
         }
 
-        if (screen is NCharacterSelectScreen)
+        if (screen is MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.IStartRunLobbyListener)
         {
             var buttons = FindAll<NCharacterSelectButton>(screen).Where(b => !b.IsLocked && b.Visible).ToList();
-            if (buttons.Count == 0) return;
-            var pick = Random.NextItem(buttons)!;
-            pick.Select();
-            Log.Info($"{ModEntry.LogTag} autopilot: character {pick.Character.Id}");
-            await Task.Delay(1000);
+            if (buttons.Count > 0)
+            {
+                var pick = Random.NextItem(buttons)!;
+                pick.Select();
+                Log.Info($"{ModEntry.LogTag} autopilot: character {pick.Character.Id}");
+                await Task.Delay(1000);
+            }
         }
-        var confirm = screen.GetNodeOrNull<NConfirmButton>("ConfirmButton");
-        if (confirm is not { IsEnabled: true }) return;
+        var confirm = screen.GetNodeOrNull<NConfirmButton>("ConfirmButton") ?? screen.GetNodeOrNull<NConfirmButton>("%ConfirmButton");
+        if (confirm is not { IsEnabled: true } || !confirm.IsVisibleInTree()) return;
         _readiedScreen = screen;
         Log.Info($"{ModEntry.LogTag} autopilot: ready in {screen.GetType().Name}");
         confirm.ForceClick();
+    }
+
+    /// <summary>Players in a lobby screen's StartRunLobby or LoadRunLobby (whatever field holds it).</summary>
+    static int LobbyPlayerCount(Node screen)
+    {
+        foreach (var f in HarmonyLib.AccessTools.GetDeclaredFields(screen.GetType()))
+        {
+            switch (f.GetValue(screen))
+            {
+                case MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.StartRunLobby s: return s.Players.Count;
+                case MegaCrit.Sts2.Core.Multiplayer.Game.Lobby.LoadRunLobby l: return l.PlayerCount;
+            }
+        }
+        return 0;
+    }
+
+    static Node? _modifiersSet;
+    static int _modifierTries;
+
+    /// <summary>Custom lobby on the host: tick --spireparty-modifiers once. False until the lobby reflects them.</summary>
+    static bool TickModifiers(MegaCrit.Sts2.Core.Nodes.Screens.CustomRun.NCustomRunScreen screen)
+    {
+        var wanted = DevSwitches.Modifiers;
+        if (wanted.Count == 0 || _modifiersSet == screen || screen.Lobby == null) return true;
+        // Per-run copies, as the game's modifier list gives the lobby on a click (NCustomRunModifiersList.GetAllModifiers);
+        // a canonical model in the lobby throws when the run begins.
+        var copies = ModelDb.GoodModifiers.Concat(ModelDb.BadModifiers)
+            .Where(m => wanted.Contains(m.GetType().Name, StringComparer.OrdinalIgnoreCase))
+            .Select(m => m.ToMutable()).ToList();
+        if (copies.Count != wanted.Count)
+            Log.Warn($"{ModEntry.LogTag} autopilot: modifiers [{string.Join(", ", wanted)}] matched only [{string.Join(", ", copies.Select(m => m.GetType().Name))}]");
+        if (++_modifierTries > 20)
+        {
+            Log.Warn($"{ModEntry.LogTag} autopilot: the lobby did not take the modifiers; readying without them");
+            _modifiersSet = screen;
+            return true;
+        }
+        if (screen.Lobby.Modifiers.Count != copies.Count)
+        {
+            Log.Info($"{ModEntry.LogTag} autopilot: setting modifiers {string.Join(", ", copies.Select(m => m.GetType().Name))} (try {_modifierTries})");
+            screen.Lobby.SetModifiers(copies); // also refreshes the host's list through ModifiersChanged
+            return false;
+        }
+        _modifiersSet = screen;
+        Log.Info($"{ModEntry.LogTag} autopilot: modifiers {string.Join(", ", screen.Lobby.Modifiers.Select(m => m.GetType().Name))}");
+        return true;
     }
 
     /// <summary>A shop purchase can open a screen (e.g. rewards) and wait on it; handle screens until it is done.</summary>

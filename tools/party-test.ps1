@@ -9,6 +9,14 @@
 #   tools/party-test.ps1 -Run smoke5 -Continue                   same party and seats again (rejoin with saved tokens)
 #   tools/party-test.ps1 -Run fast -Clients 4 -Autopilot -EnemyHp 0.1   enemies at 10% HP on every process (short fights)
 #   tools/party-test.ps1 -Run long -Clients 3 -Autopilot -KillTurn 4   host ends fights from turn 4 (console "kill all", synced)
+#   tools/party-test.ps1 -Run b5 -Clients 4 -Autopilot -Mode blitz   a new party in another mode (standard, daily, custom, blitz, dread)
+#   -Modifiers DeadlyEvents,Vintage   with -Mode custom: the autopilot host ticks these modifiers in the lobby
+#   -SaveAfter 3                     the autopilot host does Save and Quit after 3 rooms (then -Stop and -Continue)
+#   -Roster "bench,c2;add,c5,silent" roster edits on the host before it hosts (ops: bench, restore, add, reset, remove, backup)
+#   -Skip 2                          do not start client 2 (e.g. benched)
+#   -Refused 6                       start client 6 but do not wait for it (it should be refused)
+#   -ClientsOnly -Only 6 -Continue   start only client 6 into the running party (no host; logs get a new suffix)
+#   -DivergeClient 2 -DivergeAt 40   client 2 flips its 40th checksum (tests the divergence diagnostics)
 #   tools/party-test.ps1 -Stop                                   close every game process
 #
 # Seats are c1..cN, profiles user://default/<1000+n>/ (test profiles only; never the Steam profile).
@@ -28,6 +36,16 @@ param(
     [string]$PartyEnemyHealth = "",
     [int]$PartyTurnTimer = -1,
     [int[]]$Idle = @(),
+    [string]$Mode = "",
+    [string]$Modifiers = "",
+    [string]$Roster = "",
+    [int]$SaveAfter = 0,
+    [int[]]$Skip = @(),
+    [int[]]$Refused = @(),
+    [switch]$ClientsOnly,
+    [int[]]$Only = @(),
+    [int]$DivergeClient = 0,
+    [int]$DivergeAt = 0,
     [int]$HostTimeoutSeconds = 90
 )
 $ErrorActionPreference = "Stop"
@@ -46,7 +64,7 @@ if (-not $Party) { $Party = $Run }
 $runDir = Join-Path $root (Join-Path "spikes" (Join-Path "logs" $Run))
 New-Item -ItemType Directory -Force $runDir | Out-Null
 
-if (Get-Process -Name "SlayTheSpire2" -ErrorAction SilentlyContinue) {
+if (-not $ClientsOnly -and (Get-Process -Name "SlayTheSpire2" -ErrorAction SilentlyContinue)) {
     throw "Slay the Spire 2 is already running. Use -Stop first."
 }
 
@@ -74,6 +92,7 @@ if ($PartyEnemyHealth -or $PartyTurnTimer -ge 0) {
     $json = if (Test-Path $partyFile) { Get-Content $partyFile -Raw | ConvertFrom-Json } else { [pscustomobject]@{ name = $Party } }
     if ($PartyEnemyHealth) { $json | Add-Member -NotePropertyName enemyHealthMultiplier -NotePropertyValue ([double]::Parse($PartyEnemyHealth, [Globalization.CultureInfo]::InvariantCulture)) -Force }
     if ($PartyTurnTimer -ge 0) { $json | Add-Member -NotePropertyName turnTimerSeconds -NotePropertyValue $PartyTurnTimer -Force }
+    if ($Mode -and -not $json.mode) { $json | Add-Member -NotePropertyName mode -NotePropertyValue $Mode -Force }
     [IO.File]::WriteAllText($partyFile, ($json | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding $false))   # no BOM
     Write-Host "party.json updated (enemy health: $PartyEnemyHealth, turn timer: $PartyTurnTimer)"
 }
@@ -115,11 +134,22 @@ function Set-Title([int]$procId, [string]$title) {
     }
 }
 
-$players = $Clients + 1
+$players = $Clients + 1 - @(@($Skip) + @($Refused) | Where-Object { $_ -ge 1 -and $_ -le $Clients } | Sort-Object -Unique).Count
 $hostLog = Get-LogPath "host"
 $hostAuto = $Autopilot -and -not $HostManual
 $hostExtra = @("--spireparty-host=$Party", "--spireparty-expect=$players")
 if ($KillTurn -gt 0) { $hostExtra += "--spireparty-killturn=$KillTurn" }
+if ($Mode) { $hostExtra += "--spireparty-mode=$Mode" }
+if ($Modifiers) { $hostExtra += "--spireparty-modifiers=$Modifiers" }
+if ($SaveAfter -gt 0) { $hostExtra += "--spireparty-saveafter=$SaveAfter" }
+if ($Roster) {
+    # "bench,c2;add,c5,silent" -> "<party>,bench,c2;<party>,add,c5,silent"
+    $edits = ($Roster -split ";" | Where-Object { $_.Trim() } | ForEach-Object { "$Party,$($_.Trim())" }) -join ";"
+    $hostExtra = @("--spireparty-roster=$edits") + $hostExtra
+}
+if ($ClientsOnly) {
+    $pids = [ordered]@{}
+} else {
 $hostPid = Start-Game "host" $hostExtra $hostAuto
 $pids = [ordered]@{ host = $hostPid }
 
@@ -133,14 +163,18 @@ if (-not (Select-String -Path $hostLog -Pattern "hosting party" -Quiet -ErrorAct
     throw "Host did not start hosting within $HostTimeoutSeconds s; see $hostLog"
 }
 Set-Title $hostPid "HOST"
+}
 
 for ($n = 1; $n -le $Clients; $n++) {
     $seat = "c$n"
+    if ($Skip -contains $n) { Write-Host "$seat skipped"; continue }
+    if ($Only.Count -gt 0 -and -not ($Only -contains $n)) { continue }
     $tokenFile = Join-Path $runDir "token-$seat.txt"
     if (-not $Continue -and (Test-Path $tokenFile)) { Remove-Item $tokenFile }
     $auto = $Autopilot -and -not ($Manual -contains $n)
     $extra = @("--clientId=$(1000 + $n)", "--spireparty-join=127.0.0.1,$seat,,C$n")
     if ($Idle -contains $n) { $extra += "--spireparty-idle" }
+    if ($DivergeClient -eq $n -and $DivergeAt -gt 0) { $extra += "--spireparty-test-diverge=$DivergeAt" }
     $clientPid = Start-Game $seat ($extra + @(
         "--spireparty-tokenfile=`"$tokenFile`"")) $auto
     $pids[$seat] = $clientPid

@@ -90,7 +90,7 @@ public sealed class ClientSession
         Log.Info($"{ModEntry.LogTag} party settings from the host: enemy health {PartyGameplay.EnemyHealthMultiplier}, turn timer {PartyGameplay.TurnTimerSeconds} s, AFK after {PartyGameplay.AfkStrikes}");
         Log.Info($"{ModEntry.LogTag} unlocks: {PartyUnlocks.Current!.Mode}, max ascension {PartyUnlocks.Current.MaxStandardAscension} (Blitz {PartyUnlocks.Current.MaxBlitzAscension})");
         result.Client.HostLost += reason => MainThread.Post(() => Log.Info($"{ModEntry.LogTag} control channel to host closed: {reason}"));
-        Log.Info($"{ModEntry.LogTag} joined party \"{welcome.PartyName}\" as seat \"{welcome.SeatId}\" (player {welcome.PlayerId}); connecting to game on {host}:{port}");
+        Log.Info($"{ModEntry.LogTag} joined party \"{welcome.PartyName}\" as seat \"{welcome.SeatId}\" (player {welcome.PlayerId}), {welcome.Mode} mode; connecting to game on {host}:{port}");
 
         await session.JoinGame(host, port, welcome, stack);
         return null;

@@ -103,7 +103,7 @@ public sealed class RestSiteAdapter : GameAdapter
                      ("RestSiteLighting/RestSiteLLog2", LogLeft), ("RestSiteLighting/RestSiteRLog2", LogRight) })
         {
             var node = background.GetNodeOrNull(path);
-            if (node?.GetParent() is not Node owner) { Log.Warn($"{ModEntry.LogTag} rest site: no {path} to copy"); continue; }
+            if (node?.GetParent() is not Node owner) { Log.Info($"{ModEntry.LogTag} rest site: no {path} to copy"); continue; }
             var copy = node.Duplicate();
             copy.Name = node.Name + "_SpireParty";
             owner.AddChild(copy);

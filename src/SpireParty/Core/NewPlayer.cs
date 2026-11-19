@@ -5,6 +5,8 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
+using MegaCrit.Sts2.Core.Models.Modifiers;
+using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
@@ -58,6 +60,11 @@ public static class NewPlayer
             throw new InvalidOperationException($"Player {netId} is already in the run.");
 
         var state = RunState.FromSerializable(scratch);
+        // Custom runs: modifiers act on players only when the run is created (ModifierModel.OnRunCreated).
+        // Refuse the add when a joiner cannot follow them (fail closed, task 3.9).
+        string? refusal = JoinerModifiers.Refusal(state.Modifiers.Select(Traits));
+        if (refusal != null) throw new InvalidOperationException(refusal);
+
         var player = Player.CreateForNewRun(character, unlocks, netId);
         // Appends (slot = current player count), sets RunState, seeds PlayerRng from the run seed and slot,
         // runs AfterCreated on the starter cards and registers them with the run.
@@ -70,6 +77,9 @@ public static class NewPlayer
         player.PopulateRelicGrabBagIfNecessary(new Rng(seed, "spireparty_new_player"));
         new AscensionManager(state.GameMode, state.AscensionLevel).ApplyEffectsTo(player);
 
+        // The per-player part of DeadlyEvents.AfterRunCreated (the rest is run state the save already holds).
+        if (state.Modifiers.Any(m => m is DeadlyEvents)) player.RelicGrabBag.Remove<JuzuBracelet>();
+
         // Dread: the banes the party collected at each act change (CatchUp.DreadBanes), made the way
         // AscensionManager adds its own bane.
         for (int i = 0; i < extraBanes; i++)
@@ -80,5 +90,16 @@ public static class NewPlayer
         }
 
         return player.ToSerializable();
+    }
+
+    static readonly System.Reflection.MethodInfo? BaseAfterRunCreated =
+        HarmonyLib.AccessTools.Method(typeof(ModifierModel), "AfterRunCreated", new[] { typeof(RunState) });
+
+    /// <summary>What a modifier does at run creation, read from its type (so a new modifier in a game update is caught).</summary>
+    public static ModifierTraits Traits(ModifierModel m)
+    {
+        var own = HarmonyLib.AccessTools.Method(m.GetType(), "AfterRunCreated", new[] { typeof(RunState) });
+        bool overrides = own == null || BaseAfterRunCreated == null || own.DeclaringType != typeof(ModifierModel);
+        return new ModifierTraits(m.GetType().Name, m.ClearsPlayerDeck, overrides);
     }
 }

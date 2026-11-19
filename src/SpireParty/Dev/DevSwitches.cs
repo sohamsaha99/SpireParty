@@ -12,7 +12,10 @@ namespace SpireParty.Dev;
 ///   --spireparty-expect=N         with --spireparty-autopilot on the host: ready only once N players are in the lobby (default 2)
 ///   --spireparty-tokenfile=&lt;path&gt;  a test seat stores its new token here (no popup) and joins with it next time
 ///   --spireparty-test-enemyhp=x   enemy HP factor for test runs (same value on every process; tools/party-test.ps1 -EnemyHp)
-///   --spireparty-killturn=N       with --spireparty-autopilot on the host: from turn N of a fight, run the console's "kill all" (synced, but can
+///   --spireparty-modifiers=a,b    with --spireparty-autopilot on a Custom party's host: tick these modifiers in the lobby
+///   --spireparty-saveafter=N      with --spireparty-autopilot on the host: Save and Quit after N rooms of this process
+///   --spireparty-test-diverge=N   one client only: flip its N-th checksum, to test the divergence diagnostics (task 3.12)
+///   --spireparty-killturn=N      with --spireparty-autopilot on the host: from turn N of a fight, run the console's "kill all" (synced, but can
 ///                                 misalign checksums when it ends a fight: quick runs only, see findings → M3)
 /// </summary>
 public static class DevSwitches
@@ -67,6 +70,27 @@ public static class DevSwitches
         CommandLineHelper.TryGetValue("spireparty-test-enemyhp", out string? s)
         && decimal.TryParse(s, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out decimal v)
         && v > 0m && v <= 3m ? v : null;
+
+    /// <summary>--spireparty-saveafter=N: an autopilot host does Save and Quit once it has played N rooms in this process.</summary>
+    public static int? SaveAfterRooms =>
+        CommandLineHelper.TryGetValue("spireparty-saveafter", out string? n) && int.TryParse(n, out int v) && v > 0 ? v : null;
+
+    /// <summary>--spireparty-test-diverge=N (one client only): flip this process's N-th checksum of a session (DivergenceAdapter).</summary>
+    public static int? TestDiverge =>
+        CommandLineHelper.TryGetValue("spireparty-test-diverge", out string? n) && int.TryParse(n, out int v) && v > 0 ? v : null;
+
+    /// <summary>--spireparty-mode=&lt;mode&gt;: the mode of a party that --spireparty-host creates.</summary>
+    public static string? Mode =>
+        CommandLineHelper.TryGetValue("spireparty-mode", out string? m) ? Core.PartyModes.Parse(m) : null;
+
+    /// <summary>
+    /// --spireparty-modifiers=a,b: with --spireparty-autopilot on the host of a Custom party, tick these modifiers
+    /// (type names such as DeadlyEvents, Flight) in the lobby before readying.
+    /// </summary>
+    public static System.Collections.Generic.IReadOnlyList<string> Modifiers =>
+        CommandLineHelper.TryGetValue("spireparty-modifiers", out string? s) && !string.IsNullOrWhiteSpace(s)
+            ? s.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries)
+            : System.Array.Empty<string>();
 
     public static string? ShotsDir =>
         CommandLineHelper.TryGetValue("spireparty-shots", out string? dir) && !string.IsNullOrWhiteSpace(dir) ? dir : null;

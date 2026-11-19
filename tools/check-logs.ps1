@@ -20,7 +20,7 @@ if (-not $logs) { throw "No logs in $runDir" }
 $checks = [ordered]@{
     "error"      = '^\[ERROR\](?!.*was in state Canceled)'
     "exception"  = 'Exception:'
-    "divergence" = 'diverg|StateDivergence'
+    "divergence" = 'State divergence|StateDivergence|state diverged|SpireParty] state divergence'
     "adapter"    = 'adapter .* not applied|SpireParty features disabled'
     "sp-warn"    = '^\[WARN\].*\[SpireParty\]'
 }

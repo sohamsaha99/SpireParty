@@ -37,12 +37,6 @@ public static class PartyMenu
         var store = new PartyStore(PlatformInfo.SpirePartyDataDir);
 
         var form = new Form("SpireParty Host");
-        void Open(string folder)
-        {
-            string? error = HostSession.Start(folder, stack);
-            if (error == null) form.Close();
-            else form.SetStatus(error);
-        }
 
         var parties = store.List();
         if (parties.Count > 0)
@@ -55,17 +49,42 @@ public static class PartyMenu
         form.AddButtons(
             ("Create", () =>
             {
-                try
+                string folder = SeatRules.PartyFolderName(name.Text);
+                if (folder.Length == 0) form.SetStatus("The party name needs at least one letter or digit.");
+                else if (store.List().Contains(folder)) form.SetStatus($"A party called \"{folder}\" already exists.");
+                else
                 {
-                    var (folder, _) = store.Create(name.Text);
-                    Open(folder);
-                }
-                catch (Exception e) when (e is ArgumentException or InvalidOperationException)
-                {
-                    form.SetStatus(e.Message);
+                    form.Close();
+                    PickMode(store, name.Text, stack);
                 }
             }),
             ("Cancel", form.Close));
+        form.Show();
+    }
+
+    /// <summary>One party = one run = one mode (D4): the mode is chosen once, when the party is created.</summary>
+    static void PickMode(PartyStore store, string partyName, NSubmenuStack stack)
+    {
+        var form = new Form($"Game mode for \"{partyName.Trim()}\"");
+        form.AddText("The party plays one run in this mode. It cannot be changed later.", 18);
+        bool modes = ModEntry.Adapters?.IsFeatureEnabled(Features_.GameModes) ?? true;
+        var choices = PartyModes.All.Where(m => modes || m == PartyModes.Standard);
+        form.AddChoiceList(choices.Select(m => ($"{PartyModes.Label(m)} — {PartyModes.Description(m)}", (Action)(() =>
+        {
+            try
+            {
+                var (folder, _) = store.Create(partyName, m);
+                Log.Info($"{ModEntry.LogTag} created party \"{folder}\" ({m} mode)");
+                string? error = HostSession.Start(folder, stack);
+                if (error == null) form.Close();
+                else form.SetStatus(error);
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+            {
+                form.SetStatus(e.Message);
+            }
+        }))));
+        form.AddButtons(("Cancel", form.Close));
         form.Show();
     }
 

@@ -46,6 +46,8 @@ public static class ModEntry
         new TreasureAdapter(),
         new CombatLayoutAdapter(),
         new MerchantLayoutAdapter(),
+        new GameModesAdapter(),
+        new DivergenceAdapter(),
     };
 
     public static void Init()

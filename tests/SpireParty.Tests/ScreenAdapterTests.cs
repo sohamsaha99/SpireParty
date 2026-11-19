@@ -23,4 +23,7 @@ public class ScreenAdapterTests
 
     [Fact]
     public void MerchantLayout_FindsTheShopLayout() => Assert.Null(new MerchantLayoutAdapter().SelfCheck());
+
+    [Fact]
+    public void GameModes_FindsTheDailyLobbyAndModeScreens() => Assert.Null(new GameModesAdapter().SelfCheck());
 }

@@ -29,6 +29,8 @@ public sealed class PartyFile
 {
     public string Name { get; set; } = "";
     public int MaxPlayers { get; set; } = 8;
+    /// <summary>Game mode of the party's run (<see cref="PartyModes"/>), chosen when the party is created.</summary>
+    public string Mode { get; set; } = PartyModes.Standard;
     /// <summary>"everything" or "mirrorHost".</summary>
     public string Unlocks { get; set; } = "everything";
     public double EnemyHealthMultiplier { get; set; } = 1.0;
@@ -52,6 +54,7 @@ public sealed class PartyFile
         {
             Name = j.String("name", ""),
             MaxPlayers = j.Int("maxPlayers", 8, 2, 8),
+            Mode = j.Choice("mode", PartyModes.Standard, PartyModes.All),
             Unlocks = j.Choice("unlocks", "everything", "everything", "mirrorHost"),
             EnemyHealthMultiplier = j.Double("enemyHealthMultiplier", 1.0, 0.5, 3.0),
             TurnTimerSeconds = j.Int("turnTimerSeconds", 0),
@@ -120,6 +123,7 @@ public sealed class PartyFile
         {
             ["name"] = Name,
             ["maxPlayers"] = MaxPlayers,
+            ["mode"] = Mode,
             ["unlocks"] = Unlocks,
             ["enemyHealthMultiplier"] = EnemyHealthMultiplier,
             ["turnTimerSeconds"] = TurnTimerSeconds,

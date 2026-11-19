@@ -6,7 +6,9 @@ using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Screens.Blitz;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
+using MegaCrit.Sts2.Core.Nodes.Screens.Dread;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.DailyRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
@@ -26,7 +28,10 @@ namespace SpireParty.Net;
 public sealed class HostSession
 {
     /// <summary>Players this party allows: its maxPlayers, at most what the game can carry (RosterEdit.Cap).</summary>
-    int PlayerCap => RosterEdit.Cap(_party);
+    public int PlayerCap => RosterEdit.Cap(_party);
+
+    /// <summary>The run's game mode (<see cref="PartyModes"/>): the saved run's own, else party.json's.</summary>
+    public string Mode => _run != null ? ModeOf(_run) : _party.Mode;
 
     public static HostSession? Current { get; private set; }
 
@@ -86,12 +91,21 @@ public sealed class HostSession
             try
             {
                 run = RunManager.CanonicalizeSave(read.SaveData, SeatRules.HostPlayerId);
+                // The game's CanonicalizeSave does not copy IsCustomGame (vanilla Continue loses it too, findings → M3):
+                // keep it, so a custom party run stays custom (its load screen, history, mode).
+                run.IsCustomGame = read.SaveData.IsCustomGame;
             }
             catch (Exception e)
             {
                 return $"The party's saved run is not valid for this host: {e.Message}";
             }
         }
+
+        string mode = run != null ? ModeOf(run) : party.Mode;
+        if (run != null && mode != party.Mode)
+            Log.Warn($"{ModEntry.LogTag} party.json says mode \"{party.Mode}\" but the saved run is \"{mode}\"; using the run's");
+        if (mode != PartyModes.Standard && ModEntry.Adapters is { } report && !report.IsFeatureEnabled(GameAdapters.Features_.GameModes))
+            return $"{PartyModes.Label(mode)} parties are not available with this game build:\n{report.DisabledMessage()}";
 
         var release = ReleaseInfoManager.Instance.ReleaseInfo;
         var identity = new HostIdentity(ModEntry.Version, release?.Version ?? "unknown", release?.Commit ?? "unknown");
@@ -130,12 +144,12 @@ public sealed class HostSession
         SpirePartySession.Begin(new SessionContext(SessionRole.Host, party.Name, store.PartyDir(folder),
             PartyStore.HostSeatId, SeatRules.HostPlayerId));
         MainThread.EveryFrame += session.CheckStillRunning;
-        Log.Info($"{ModEntry.LogTag} hosting party \"{party.Name}\" ({folder}) on TCP+UDP {config.GamePort}, " +
+        Log.Info($"{ModEntry.LogTag} hosting party \"{party.Name}\" ({folder}, {mode} mode) on TCP+UDP {config.GamePort}, " +
                  $"control channel on {plan.Description}; saved run: {(run != null ? "yes" : "no")}");
 
         try
         {
-            PushLobby(stack, netService, run, RosterEdit.Cap(party));
+            PushLobby(stack, netService, run, RosterEdit.Cap(party), session.Mode);
         }
         catch (Exception e)
         {
@@ -146,13 +160,33 @@ public sealed class HostSession
         return null;
     }
 
-    static void PushLobby(NSubmenuStack stack, NetHostGameService netService, SerializableRun? run, int playerCap)
+    /// <summary>
+    /// The lobby for a new run in the party's mode (the same screens as the game's own Host menu), or for
+    /// the saved run (the same routing as the game's Continue). Daily's screen has no cap argument; its
+    /// lobby takes the cap from <see cref="PlayerCap"/> (GameModesAdapter).
+    /// </summary>
+    static void PushLobby(NSubmenuStack stack, NetHostGameService netService, SerializableRun? run, int playerCap, string mode)
     {
         if (run == null)
         {
-            var screen = stack.GetSubmenuType<NCharacterSelectScreen>();
-            screen.InitializeMultiplayerAsHost(netService, playerCap);
-            stack.Push(screen);
+            switch (mode)
+            {
+                case PartyModes.Daily:
+                    Push<NDailyRunScreen>(stack, s => s.InitializeMultiplayerAsHost(netService));
+                    break;
+                case PartyModes.Custom:
+                    Push<NCustomRunScreen>(stack, s => s.InitializeMultiplayerAsHost(netService, playerCap));
+                    break;
+                case PartyModes.Blitz:
+                    Push<NBlitzScreen>(stack, s => s.InitializeMultiplayerAsHost(netService, playerCap));
+                    break;
+                case PartyModes.Dread:
+                    Push<NDreadScreen>(stack, s => s.InitializeMultiplayerAsHost(netService, playerCap));
+                    break;
+                default:
+                    Push<NCharacterSelectScreen>(stack, s => s.InitializeMultiplayerAsHost(netService, playerCap));
+                    break;
+            }
         }
         else if (run.GameMode == GameMode.Daily)
         {
@@ -174,6 +208,24 @@ public sealed class HostSession
         }
     }
 
+    static void Push<T>(NSubmenuStack stack, Action<T> init) where T : NSubmenu
+    {
+        var screen = stack.GetSubmenuType<T>();
+        init(screen);
+        stack.Push(screen);
+    }
+
+    /// <summary>The party's mode name for a saved run (its own mode wins over party.json's).</summary>
+    static string ModeOf(SerializableRun run) =>
+        run.IsCustomGame ? PartyModes.Custom
+        : run.GameMode switch
+        {
+            GameMode.Daily => PartyModes.Daily,
+            GameMode.Blitz => PartyModes.Blitz,
+            GameMode.Dread => PartyModes.Dread,
+            _ => PartyModes.Standard,
+        };
+
     /// <summary>Called on a background thread by the control server, one hello at a time.</summary>
     ControlMessage OnHello(Hello hello, IPAddress from, System.Collections.Generic.IReadOnlyCollection<string> connected)
     {
@@ -184,7 +236,7 @@ public sealed class HostSession
             bool open = _run == null;
             var runIds = _run?.Players.Select(p => p.NetId).ToList();
             var decision = HostHandshake.Decide(_identity, hello.SpirePartyVersion, hello.GameVersion, hello.GameCommit,
-                hello.SeatId, hello.Token, from.ToString(), _party, new LobbyState(open, PlayerCap, connected, runIds), _limiter);
+                hello.SeatId, hello.Token, from.ToString(), _party, new LobbyState(open, PlayerCap, connected, runIds, _runInProgress), _limiter);
 
             if (decision is Deny deny) return new Refuse(deny.Code, deny.Reason);
             var admit = (Admit)decision;
@@ -234,7 +286,7 @@ public sealed class HostSession
                 mirror ? PartyUnlocks.ToJson(unlocks!.Unlocks) : null,
                 mirror ? unlocks!.MaxStandardAscension : 0, mirror ? unlocks!.MaxBlitzAscension : 0,
                 PartyGameplay.EnemyHealthMultiplier, PartyGameplay.TurnTimerSeconds, PartyGameplay.AfkStrikes,
-                PartyGameplay.TimerPaused);
+                PartyGameplay.TimerPaused, Mode);
         }
     }
 
@@ -273,8 +325,12 @@ public sealed class HostSession
         }
     }
 
+    /// <summary>Copied from RunManager every frame (main thread) for the hello handler, which runs on another thread.</summary>
+    volatile bool _runInProgress;
+
     void CheckStillRunning()
     {
+        _runInProgress = RunManager.Instance?.IsInProgress == true;
         // Wait for the run to be cleaned up too: RunManager.CleanUp still writes (the final combat
         // replay) after the disconnect, and that write must stay inside the session.
         if (Current == this && !NetService.IsConnected && !RunManager.Instance.IsInProgress) Stop();

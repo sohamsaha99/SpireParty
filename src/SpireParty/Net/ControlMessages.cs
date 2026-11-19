@@ -28,7 +28,7 @@ public sealed record Welcome(ulong PlayerId, string SeatId, string PartyName, st
                              IReadOnlyDictionary<ulong, string>? Names = null,
                              string? HostUnlocks = null, int HostMaxStandardAscension = 0, int HostMaxBlitzAscension = 0,
                              decimal EnemyHealthMultiplier = 1m, int TurnTimerSeconds = 0, int AfkStrikes = 2,
-                             bool TimerPaused = false) : ControlMessage;
+                             bool TimerPaused = false, string Mode = "standard") : ControlMessage;
 
 /// <summary>Host → clients: the host paused or resumed the turn timer for everyone.</summary>
 public sealed record TimerPause(bool Paused) : ControlMessage;
@@ -76,6 +76,7 @@ public static class ControlCodec
                 ["hostUnlocks"] = w.HostUnlocks, ["hostMaxStandardAscension"] = w.HostMaxStandardAscension,
                 ["hostMaxBlitzAscension"] = w.HostMaxBlitzAscension, ["enemyHealthMultiplier"] = w.EnemyHealthMultiplier,
                 ["turnTimerSeconds"] = w.TurnTimerSeconds, ["afkStrikes"] = w.AfkStrikes, ["timerPaused"] = w.TimerPaused,
+                ["mode"] = w.Mode,
             },
             Roster r => new JsonObject { ["type"] = "roster", ["names"] = EncodeNames(r.Names) },
             TimerPause p => new JsonObject { ["type"] = "timerPause", ["paused"] = p.Paused },
@@ -121,7 +122,8 @@ public static class ControlCodec
                     o["enemyHealthMultiplier"] is JsonValue m && m.TryGetValue(out decimal mul) ? mul : 1m,
                     o["turnTimerSeconds"] is JsonValue tt && tt.TryGetValue(out int tts) ? tts : 0,
                     o["afkStrikes"] is JsonValue af && af.TryGetValue(out int afs) ? afs : 2,
-                    o["timerPaused"] is JsonValue tp && tp.TryGetValue(out bool tpb) && tpb),
+                    o["timerPaused"] is JsonValue tp && tp.TryGetValue(out bool tpb) && tpb,
+                    Core.PartyModes.Parse(Str("mode")) ?? Core.PartyModes.Standard),
                 "roster" => new Roster(DecodeNames(o["names"]) ?? new Dictionary<ulong, string>()),
                 "timerPause" => new TimerPause(o["paused"] is JsonValue pv && pv.TryGetValue(out bool pb) && pb),
                 "afk" => new AfkReport(o["afk"] is JsonValue av && av.TryGetValue(out bool ab) && ab),

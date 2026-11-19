@@ -45,13 +45,13 @@ public sealed class PartyStore
     }
 
     /// <summary>Creates a party with the host seat. Throws if the name is unusable or taken.</summary>
-    public (string Folder, PartyFile Party) Create(string displayName)
+    public (string Folder, PartyFile Party) Create(string displayName, string mode = PartyModes.Standard)
     {
         string folder = SeatRules.PartyFolderName(displayName);
         if (folder.Length == 0) throw new ArgumentException("The party name needs at least one letter or digit.");
         if (Directory.Exists(PartyDir(folder))) throw new InvalidOperationException($"A party called \"{folder}\" already exists.");
 
-        var party = new PartyFile { Name = displayName.Trim() };
+        var party = new PartyFile { Name = displayName.Trim(), Mode = PartyModes.Parse(mode) ?? PartyModes.Standard };
         party.Seats.Add(new Seat
         {
             SeatId = HostSeatId,

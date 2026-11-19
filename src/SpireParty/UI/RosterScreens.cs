@@ -41,9 +41,10 @@ public static class RosterScreens
         {
             var run = editor.LoadRun();
             summary = run == null
-                ? "No run yet. Continue opens the lobby, where players join and pick characters."
-                : $"Run in progress: act {run.CurrentActIndex + 1}, floor {run.MapPointHistory.Sum(a => a.Count)}, " +
-                  $"{run.Players.Count} players. Continue opens the lobby; players rejoin with their seat ID and token.";
+                ? $"{PartyModes.Label(party.Mode)} mode. No run yet. Continue opens the lobby, where players join and pick characters."
+                : $"{PartyModes.Label(party.Mode)} run in progress: act {run.CurrentActIndex + 1}, floor {run.MapPointHistory.Sum(a => a.Count)}, " +
+                  $"{run.Players.Count} players{(run.Modifiers.Count > 0 ? $", modifiers: {string.Join(", ", run.Modifiers.Select(m => m.Id?.Entry))}" : "")}. " +
+                  "Continue opens the lobby; players rejoin with their seat ID and token.";
         }
         catch (System.IO.InvalidDataException e)
         {

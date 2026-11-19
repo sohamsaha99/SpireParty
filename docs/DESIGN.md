@@ -178,14 +178,14 @@ mods/SpireParty/parties/thursday-crew/
 
 The setting must be identical on every client, so the host sends it in the handshake.
 
-**Modes.** The party lobby uses the game's own mode and ascension pickers; SpireParty only stores the choice in `party.json`.
+**Modes.** The mode is chosen once, when the party is created (one party = one run = one mode; M3 decision D4), and stored in `party.json` as `mode`. Continue opens that mode's own lobby screen; the game's own ascension picker and, for Custom, its modifier list are used there. Once a run exists its save holds the mode and modifiers, and the save wins.
 
 | Mode | In party runs | Notes |
 | --- | --- | --- |
 | Standard, Ascension 0 to 10 | Yes | Ascension picked in the lobby |
-| Custom (modifiers) | Yes | Modifiers stored with the party |
+| Custom (modifiers) | Yes | Modifiers are picked in the lobby and kept in the run save. A player can be added unless a modifier changes players at run creation in a way a joiner cannot follow (Draft, Insanity, Sealed Deck: refused with the reason); Deadly Events is repeated for the joiner |
 | Daily | Yes, local only | Same daily seed; no leaderboard submission |
-| Blitz, with its own Ascension 1 to 5 | Yes, beta branch | No map, so the roster safe point is after an encounter's rewards |
+| Blitz, with its own Ascension 1 to 5 | Yes, beta branch | One line of rooms per act; roster edits use Edit roster (Save and Quit) like every mode, and the room is replayed |
 | Dread | Yes, beta branch | New joiners get the Ascender's Banes the party has collected so far |
 
 Mega Crit says [Blitz and Dread work in both single-player and multiplayer](https://apollotrail.com/blog/slay-the-spire-2-blitz-dread-modes-explained), but both are on the [public-beta branch only (v0.113.0)](https://insider-gaming.com/slay-the-spire-2-new-character-modes/) for now. SpireParty ships one build per branch in the same download and loads the one that matches, as [CouchCoop does](https://github.com/tfoxy/sts2-couch-coop/releases/tag/v0.4.1). Every player must be on the same branch.
@@ -331,6 +331,7 @@ Every choice a group might want differently is a setting with a simple default: 
 | Setting | File | Default | Allowed |
 | --- | --- | --- | --- |
 | Max players | party.json | 8 (changed 2026-11-18, user) | 2 to 8 |
+| Game mode | party.json | Standard (chosen when the party is created; M3) | Standard, daily, custom, Blitz, Dread |
 | Unlocks | party.json | Everything unlocked | Everything, mirror host |
 | Enemy health multiplier | party.json | 1.0 | 0.5 to 3.0 |
 | Turn timer | party.json | Off | Off, 30, 45, 60, 90 s |
@@ -344,6 +345,7 @@ Every choice a group might want differently is a setting with a simple default: 
 | Browser seats | config.json | On | On, off |
 | Seat video | config.json | 1280x720, JPEG quality 70, at most 15 frames per second | Any |
 | Backups kept per party | config.json | 20 | 1 to 100 |
+| Divergence diagnostics kept | config.json | 10 (M3, task 3.12) | 1 to 100 |
 
 **Flexibility rules.**
 

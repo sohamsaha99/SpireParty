@@ -104,25 +104,25 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] While AFK: the seat's own client ends its turn as soon as it can act. Banner: "You are marked AFK — move the mouse or press a key to come back". AFK state broadcast over the control channel. The client reports `afk` to the host, which keeps the list (its own state, clients' reports, drops) and broadcasts `afkList`; every player sees "AFK: <names>". Input counts only inside the focused game window. While the host has paused the timer, an AFK seat is not passed. Seen by the user: both banners, the AFK seat passing at once, and coming back by moving the mouse inside its window (not outside).
 - [x] Automated: the idle client from 3.7 is marked AFK after two timeouts and then passes at once. Runs `afk3`, `afk3b`: marked after two timeouts, passing turns at once, host broadcast, clean logs.
 
-### 3.9 Game modes in party runs
-- [ ] Creating a party offers the mode screens (Standard, Daily, Custom, Blitz, Dread); each hosts over ENet with the party's cap. Mode and modifiers stored in `party.json`, sent in the welcome.
-- [ ] Unlock setting covers the mode gates (Blitz and Dread epochs), as M2's "everything" already grants the epochs.
-- [ ] Roster edits per mode: Dread joiners get the party's banes (M2 logic); Blitz edits at its safe point after rewards; Custom joiners: check whether modifiers that act at run creation need applying to a new player (findings → M2 noted they are skipped), and refuse the add with a reason if a modifier cannot be applied.
-- [ ] Daily: no leaderboard upload (M1 guard), the day's seed kept.
-- [ ] Automated: a 5-player autopilot run per mode through a few floors, then a bench and an add, then Continue.
+### 3.9 Game modes in party runs — done 2026-11-18 (findings → M3)
+- [x] Creating a party offers the mode screens (Standard, Daily, Custom, Blitz, Dread); each hosts over ENet with the party's cap (Daily's literal 4 patched, `GameModesAdapter`). The mode is stored in `party.json` (`mode`) and sent in the welcome; modifiers are picked in the Custom lobby and kept in the run save (one source of truth), shown on the party screen. The game drops a custom run's custom flag on Continue (vanilla too); party runs keep it.
+- [x] Unlock setting covers the mode gates (Blitz and Dread epochs), as M2's "everything" already grants the epochs.
+- [x] Roster edits per mode: Dread joiners get the party's banes (M2 logic); Blitz uses Edit roster (Save and Quit) like every mode, replaying the room; joiners: Deadly Events is repeated for them, and an add is refused with the reason in a run with a deck-clearing modifier (Draft, Insanity, Sealed Deck: also Dailies that roll one) or an unknown run-creation modifier.
+- [x] Daily: no leaderboard upload (M1 guard), the day's seed kept (in the save; `DailyTime` survives Continue).
+- [x] Automated: `tools/scenarios/mode.ps1` for each mode (5 players: new run, Save and Quit, bench + add, Continue, restore, Continue): all five pass. Found and fixed on the way: the autopilot's shop bought without the purchase sync (Blitz shop diverged).
 
-### 3.12 Divergence diagnostics (user, 2026-11-18)
-- [ ] During a SpireParty session, when the game reports a state divergence (`ChecksumTracker`: a `StateDivergenceMessage` received, or a mismatch found as host), add to the game's message: "This happened in a SpireParty run. Please report it to the SpireParty developer and attach: <folder>".
-- [ ] At that moment save `user://mods/SpireParty/diagnostics/<yyyyMMdd-HHmmss>/`: the game log so far, SpireParty and game version/commit, OS, party.json **without token hashes**, the party's run save, the divergence context the game logs (action, checksum id, local and remote values, which peer). Never inside a profile folder (hard rule 1). Keep the newest N (config, default 10).
-- [ ] Unit tests for the bundle writer (token hashes stripped, pruning); in game: force a divergence with a test-only switch and check the message and the folder.
+### 3.12 Divergence diagnostics (user, 2026-11-18) — done 2026-11-18 (findings → M3)
+- [x] During a SpireParty session, when the game reports a state divergence (`ChecksumTracker`: a `StateDivergenceMessage` received, or a mismatch found as host), add to the game's message: "This happened in a SpireParty run. Please report it to the SpireParty developer and attach: <folder>".
+- [x] At that moment save `user://mods/SpireParty/diagnostics/<yyyyMMdd-HHmmss>/`: the game log so far, SpireParty and game version/commit, OS, party.json **without token hashes**, the party's run save, the divergence context the game logs (action, checksum id, local and remote values, which peer). Never inside a profile folder (hard rule 1). Keep the newest N (config, default 10).
+- [x] Unit tests for the bundle writer (token hashes stripped, pruning); in game: `tools/scenarios/diverge.ps1` (`--spireparty-test-diverge`): host and client bundles, token hashes removed, popup line added.
 
-### 3.13 Refuse joins while a run is in progress (user, 2026-11-18)
-- [ ] `HostHandshake.Decide` refuses every hello while the host's run is in progress (`RunManager.IsInProgress`), before any seat is created or claimed, with: "The party is in the middle of a run. Ask the host to use Edit roster (or Save and Quit) to let you in." Today a new seat ID can pass the handshake mid-run in a party that had no saved run at Continue (leaving an unused "not in run" seat in party.json) and the game then refuses with its generic "run in progress".
-- [ ] Unit tests (new seat, known seat, open seat: all refused, party.json unchanged); in game: start a client mid-run and see the reason.
+### 3.13 Refuse joins while a run is in progress (user, 2026-11-18) — done 2026-11-18 (findings → M3)
+- [x] `HostHandshake.Decide` refuses every hello while the host's run is in progress (`RunManager.IsInProgress`), before any seat is created or claimed, with: "The party is in the middle of a run. Ask the host to use Edit roster (or Save and Quit) to let you in." Today a new seat ID can pass the handshake mid-run in a party that had no saved run at Continue (leaving an unused "not in run" seat in party.json) and the game then refuses with its generic "run in progress".
+- [x] Unit tests (new seat, known seat, open seat: all refused, party.json unchanged); in game: `tools/scenarios/midrun.ps1` (a new seat started two rooms into a run is refused with the reason; party.json unchanged; logs clean).
 
-### 3.14 Dev tools stay, inactive (user, 2026-11-18)
-- [ ] The autopilot, light client, screenshots, test enemy HP and the other `--spireparty-*` dev switches stay in the codebase and in every build (so release builds can be tested the same way); they do nothing unless passed on the command line. Document them in one place (`docs/testing.md`: switches, `tools/party-test.ps1`, `tools/check-logs.ps1`, what the autopilot can and cannot do, known pitfalls such as console `kill all`).
-- [ ] The autopilot is the standard way to test future changes: every later milestone's checks start with an automated party run.
+### 3.14 Dev tools stay, inactive (user, 2026-11-18) — done 2026-11-18
+- [x] The autopilot, light client, screenshots, test enemy HP and the other `--spireparty-*` dev switches stay in the codebase and in every build (so release builds can be tested the same way); they do nothing unless passed on the command line. Document them in one place (`docs/testing.md`: switches, `tools/party-test.ps1`, `tools/check-logs.ps1`, what the autopilot can and cannot do, known pitfalls such as console `kill all`).
+- [x] The autopilot is the standard way to test future changes: every later milestone's checks start with an automated party run (`docs/testing.md` → The loop). Also fixed there: the autopilot's shop step now buys through the purchase sync (`SyncedShopHandler`; AutoSlay's handler bought only locally).
 
 ### 3.10 Regression scenarios
 - [ ] Dev switches for the roster flows (`--spireparty-roster=<party>,<bench|restore|add|reset>,<seat>[,<character>]`, replacing `--spireparty-addseat`; Save and Quit after N floors).
