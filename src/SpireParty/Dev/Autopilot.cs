@@ -419,6 +419,12 @@ public static class Autopilot
             await handler.HandleAsync(Random, cts.Token);
             return true;
         }
+        catch (ObjectDisposedException)
+        {
+            // The party left the room while this step was still running (its nodes are freed): nothing to do.
+            Log.Info($"{ModEntry.LogTag} autopilot: {what} left before the step finished");
+            return true;
+        }
         catch (Exception e)
         {
             // Co-op waits (others still choosing) can outlast a handler written for single-player.

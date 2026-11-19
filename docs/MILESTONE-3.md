@@ -124,12 +124,12 @@ Order: 3.1 (tooling decides how everything else is tested), 3.2 (the audit decid
 - [x] The autopilot, light client, screenshots, test enemy HP and the other `--spireparty-*` dev switches stay in the codebase and in every build (so release builds can be tested the same way); they do nothing unless passed on the command line. Document them in one place (`docs/testing.md`: switches, `tools/party-test.ps1`, `tools/check-logs.ps1`, what the autopilot can and cannot do, known pitfalls such as console `kill all`).
 - [x] The autopilot is the standard way to test future changes: every later milestone's checks start with an automated party run (`docs/testing.md` → The loop). Also fixed there: the autopilot's shop step now buys through the purchase sync (`SyncedShopHandler`; AutoSlay's handler bought only locally).
 
-### 3.10 Regression scenarios
-- [ ] Dev switches for the roster flows (`--spireparty-roster=<party>,<bench|restore|add|reset>,<seat>[,<character>]`, replacing `--spireparty-addseat`; Save and Quit after N floors).
-- [ ] Scenarios in `tools/scenarios/`: M2 bench, restore, add, token reset, backup restore; 8 players to the act-1 boss; each mode. Each ends with the log checker and the profile hash compare.
+### 3.10 Regression scenarios — done 2026-11-18 (docs/testing.md → Scenarios)
+- [x] Dev switches for the roster flows (`--spireparty-roster=<party>,<bench|restore|add|reset|remove|backup>,<seat>[,<character>]`, several with `;`, replacing `--spireparty-addseat`; `--spireparty-saveafter=N` rooms). `party-test.ps1` -Roster, -SaveAfter, -Skip, -Refused, -ClientsOnly.
+- [x] Scenarios in `tools/scenarios/` (`all.ps1` runs them): `roster.ps1` (M2 bench, restore, add, token reset, backup restore), `act1-8.ps1` (8 players through Act 1, a ninth refused), `mode.ps1` per mode, `midrun.ps1`, `diverge.ps1`. Each ends with the log checker and the profile hash compare. All pass on the VM (2026-11-18).
 
-### 3.15 Docs (was 3.11; after 3.12–3.14)
-- [ ] `docs/findings.md` → M3 (audit, RMP mapping, health chart, autopilot, resource numbers, modes). `docs/DESIGN.md` updated for anything that changed. `docs/game-version.md` re-checked. `THIRD_PARTY_NOTICES.md` entry for every RMP piece reused.
+### 3.15 Docs (was 3.11; after 3.12–3.14) — done 2026-11-18
+- [x] `docs/findings.md` → M3 (audit, RMP mapping, health chart, autopilot, resource numbers, modes, diagnostics, scenarios). `docs/DESIGN.md` updated (mode in party.json, Custom joiners, diagnostics setting). `docs/game-version.md` re-checked (unchanged). `THIRD_PARTY_NOTICES.md` covers every RMP piece (3.3–3.4; none added since).
 
 ## Gate test (Windows VM)
 
