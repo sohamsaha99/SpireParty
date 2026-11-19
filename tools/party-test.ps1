@@ -68,29 +68,41 @@ if (-not $ClientsOnly -and (Get-Process -Name "SlayTheSpire2" -ErrorAction Silen
     throw "Slay the Spire 2 is already running. Use -Stop first."
 }
 
-# Test profiles start with mods disabled and show the mods prompt once. Seed a missing profile's
-# settings from an existing test profile that has mods enabled (test profiles only).
+# Test profiles start with mods disabled and show the mods prompt once. Test profiles only (default/<id>/),
+# never the Steam profile:
+#  1. a test profile the game wrote with mods off gets mod_settings.mods_enabled turned on (findings -> M2,
+#     mods prompt per profile; an empty mod_list means every mod is enabled). Text edit keeps the game's format.
+#  2. a missing profile is seeded from a test profile with mods on: default/1000, else default/1, else any other.
 $userDir = Join-Path $env:APPDATA "SlayTheSpire2"
-$seed = Join-Path $userDir (Join-Path "default" (Join-Path "1000" "settings.save"))
-foreach ($id in @(1) + (1..$Clients | ForEach-Object { 1000 + $_ })) {
-    $dir = Join-Path $userDir (Join-Path "default" "$id")
+$defaultDir = Join-Path $userDir "default"
+$ids = @(1) + (1..$Clients | ForEach-Object { 1000 + $_ })
+foreach ($id in $ids) {
+    $settings = Join-Path $defaultDir (Join-Path "$id" "settings.save")
+    if (-not (Test-Path $settings)) { continue }
+    $text = [IO.File]::ReadAllText($settings)
+    $fixed = $text -replace '"mod_settings":\s*null', '"mod_settings": { "mods_enabled": true, "mod_list": [] }' `
+                   -replace '"mods_enabled":\s*false', '"mods_enabled": true'
+    if ($fixed -ne $text) {
+        [IO.File]::WriteAllText($settings, $fixed, (New-Object Text.UTF8Encoding $false))
+        Write-Host "Enabled mods in test profile default/$id"
+    }
+}
+$seed = $null
+if (Test-Path $defaultDir) {
+    $candidates = Get-ChildItem $defaultDir -Directory | Where-Object { $_.Name -match '^\d+$' } |
+        Sort-Object @{ Expression = { if ($_.Name -eq "1000") { 0 } elseif ($_.Name -eq "1") { 1 } else { 2 } } }, @{ Expression = { [int]$_.Name } }
+    foreach ($c in $candidates) {
+        $file = Join-Path $c.FullName "settings.save"
+        if ((Test-Path $file) -and ([IO.File]::ReadAllText($file) -match '"mods_enabled":\s*true')) { $seed = $file; break }
+    }
+}
+foreach ($id in $ids) {
+    $dir = Join-Path $defaultDir "$id"
     $settings = Join-Path $dir "settings.save"
-    if (-not (Test-Path $settings) -and (Test-Path $seed)) {
+    if (-not (Test-Path $settings) -and $seed) {
         New-Item -ItemType Directory -Force $dir | Out-Null
         Copy-Item $seed $settings
-        Write-Host "Seeded test profile default/$id"
-    }
-    # No seed (test profiles wiped): the game wrote this profile's settings on a first launch with mods off.
-    # Turn on mod_settings.mods_enabled in this test profile only (findings -> M2, mods prompt per profile);
-    # an empty mod_list means every mod is enabled. Text edit, so the game's own formatting is kept.
-    if (Test-Path $settings) {
-        $text = [IO.File]::ReadAllText($settings)
-        $fixed = $text -replace '"mod_settings":\s*null', '"mod_settings": { "mods_enabled": true, "mod_list": [] }' `
-                       -replace '"mods_enabled":\s*false', '"mods_enabled": true'
-        if ($fixed -ne $text) {
-            [IO.File]::WriteAllText($settings, $fixed, (New-Object Text.UTF8Encoding $false))
-            Write-Host "Enabled mods in test profile default/$id"
-        }
+        Write-Host "Seeded test profile default/$id from default/$(Split-Path -Leaf (Split-Path -Parent $seed))"
     }
 }
 

@@ -66,7 +66,7 @@ Starts a host and N clients on this PC over 127.0.0.1, all without Steam. Proces
 
 **Waiting.** Watch the host log in a background loop rather than sleeping: count `Moving to coordinate` (one per room), stop on `act 1 coord` (Act 2 reached) or on any `diverg` line. Each Continue adds one `hosting party "<name>"` line.
 
-**Test profiles.** A missing test profile (`user://default/<id>/`) is seeded from `default/1000`. If none exists (profiles wiped), the game's first launch writes the profile with mods off and SpireParty is skipped; the next `party-test.ps1` start turns `mod_settings.mods_enabled` on in that test profile only (never under `steam/`), so start it again.
+**Test profiles.** `party-test.ps1` seeds a missing test profile (`user://default/<id>/`) from a test profile with mods on (`default/1000`, else `default/1`, else any other), and turns `mod_settings.mods_enabled` on in a test profile the game wrote with mods off (test profiles only, never under `steam/`). Only if no test profile exists at all (all wiped) does the first host start skip SpireParty; start it again (`check-update.ps1` does).
 
 **Resources.** A light client uses about 730 MB. 8 playing need about 6 GB of RAM; on the 12 GB VM close other desktop apps first. Ask whoever is at the PC not to click autopilot windows.
 
