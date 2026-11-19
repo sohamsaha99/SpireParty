@@ -2,6 +2,18 @@
 
 How SpireParty is tested, and the tools for it. **Every change starts with an automated party run** (M3 task 3.14, user, 2026-11-18): build, unit tests, deploy, then a scripted party on autopilot, then the log checker and, for anything near saves, the profile hash compare. A person is asked only for what needs eyes or hands: readability, Steam's Play Modded prompt, the Join form, and playing a seat when a feature needs a human.
 
+## Which tool when
+
+| Situation | Tool | Section |
+| --- | --- | --- |
+| The game updated (Steam), or first party on a build | `tools/check-update.ps1` | After a game update |
+| Any code change | build, `dotnet test`, `tools/deploy.ps1`, `tools/party-test.ps1 … -Autopilot`, `tools/check-logs.ps1` | The loop |
+| Before a gate or a release, or a change near rosters, modes, saves | `tools/scenarios/all.ps1` (`-Gate`) | Scenarios |
+| Proving no profile write (hard rule 1) | `tools/hash-profile.ps1` | tools/hash-profile.ps1 |
+| A feature needs a person (readability, Join form, Play Modded) | `tools/party-test.ps1 -Manual 1` or `-HostManual` | tools/party-test.ps1 |
+
+Every tool runs on the Windows VM; logs and reports go to `spikes/logs/` (gitignored).
+
 ## The loop
 
 ```powershell

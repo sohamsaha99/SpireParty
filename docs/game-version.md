@@ -4,7 +4,7 @@ The game build SpireParty is developed and tested against. Re-check `release_inf
 
 | Field | Value |
 | --- | --- |
-| Checked on | 2026-11-16, re-checked 2026-11-17 before the M1 gate and 2026-11-18 for M3 (unchanged; `sts2.dll` SHA-256 starts 62ecbe91093e1fa8) |
+| Checked on | 2026-11-16, re-checked 2026-11-17 before the M1 gate and 2026-11-18 for M3, and 2026-11-19 with `tools/check-update.ps1` (all steps PASS, 17/17 adapters; unchanged; `sts2.dll` SHA-256 starts 62ecbe91093e1fa8) |
 | Steam branch (beta key) | `public-beta` |
 | Steam build ID | 26660232 |
 | `release_info.json` version | v0.113.1 |

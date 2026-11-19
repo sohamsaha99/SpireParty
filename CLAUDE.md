@@ -36,7 +36,7 @@ SpireParty is a single C# mod for Slay the Spire 2 (STS2) that lets up to 8 frie
 - Put the install path in `Directory.Build.props` as `Sts2GameDir`, overridable per machine (env var `STS2_GAME_DIR` or `Directory.Build.props.user`, gitignored). Derive the data folder from the OS.
 - Reference `sts2.dll`, `GodotSharp.dll`, `0Harmony.dll` from the data folder with `<Private>false</Private>` so they are never copied to output.
 - **User data folder:** never hard-code it. Resolve through Godot's `user://` / `OS.GetUserDataDir()`. On startup, log the resolved user data dir, the game build, the branch and the SpireParty version.
-- Before maintaining a release, re-check the game's `release_info.json`, `sts2.runtimeconfig.json` and `sts2.dll` for changes; record the build in `docs/game-version.md`.
+- Before maintaining a release, re-check the game's `release_info.json`, `sts2.runtimeconfig.json` and `sts2.dll` for changes; record the build in `docs/game-version.md`. `tools/check-update.ps1` does this check (see Testing below).
 
 ## Repository layout
 
@@ -58,7 +58,7 @@ src/SpireParty/
   Dev/                       test-only dev switches: light client, autopilot, screenshots (inactive without a switch)
 web/                         lobby page and seat viewer (plain HTML/JS, no build step)
 tests/SpireParty.Tests/      unit tests for pure logic (no game needed)
-tools/                       deploy.ps1, deploy.sh, party-test.ps1, check-logs.ps1, helper scripts
+tools/                       deploy.ps1, deploy.sh, party-test.ps1, check-logs.ps1, check-update.ps1, hash-profile.ps1/.sh, scenarios/ (see docs/testing.md)
 docs/                        DESIGN.md, MILESTONE-0.md, findings.md, game-version.md
 decompiled/                  decompiled game code — GITIGNORED, never committed
 ```
@@ -69,6 +69,17 @@ decompiled/                  decompiled game code — GITIGNORED, never committe
 2. `tools/deploy.ps1` (Windows) or `tools/deploy.sh` (Linux): copy `SpireParty.dll`, `SpireParty.json`, `lib/`, `web/`, licenses into `<install>/mods/SpireParty/`. Close the game first.
 3. Launch through Steam. Choose **Play Modded** if prompted. Check the log for the SpireParty startup line.
 4. Build output must be identical on both OSes (one DLL). Only `native/` (WebRTC step, later) differs per OS.
+
+## Testing
+
+**Read `docs/testing.md` before testing anything.** It documents the automated tools; reuse them rather than launching games by hand. The user wants Claude to run every command; a person is asked only for what needs eyes or hands.
+
+| When | Command |
+| --- | --- |
+| After every Steam update of the game, and before playing a party on a build not yet checked | `tools/check-update.ps1` (add `-Full` before a release) |
+| Every change: a scripted party on autopilot | `tools/party-test.ps1 -Run <name> -Clients 4 -Autopilot -EnemyHp 0.15`, then `tools/check-logs.ps1 -Run <name>` |
+| Regression suite (about 45 min; `-Gate` adds the 8-player run) | `tools/scenarios/all.ps1` |
+| Anything near saves or progress (hard rule 1) | `tools/hash-profile.ps1` before and after |
 
 ## Hard rules
 
