@@ -8,10 +8,11 @@ public sealed record HostIdentity(string SpirePartyVersion, string GameVersion, 
 
 /// <summary>
 /// Live lobby state the decision depends on. <paramref name="RunPlayerIds"/> is null when no saved run
-/// is loaded; otherwise only seats whose player is in the saved run may join.
+/// is loaded; otherwise only seats whose player is in the saved run may join. <paramref name="RunInProgress"/>: the
+/// host is playing a run (not in a lobby); every hello is refused then (task 3.13).
 /// </summary>
 public sealed record LobbyState(bool OpenForNewSeats, int PlayerCap, IReadOnlyCollection<string> ConnectedSeatIds,
-                                IReadOnlyCollection<ulong>? RunPlayerIds = null);
+                                IReadOnlyCollection<ulong>? RunPlayerIds = null, bool RunInProgress = false);
 
 public abstract record HandshakeDecision;
 /// <param name="NewToken">Shown once to the joining player: set for a new seat and for a claimed open seat.</param>
@@ -29,6 +30,9 @@ public sealed record Deny(string Code, string Reason) : HandshakeDecision;
 /// </summary>
 public static class HostHandshake
 {
+    public const string RunInProgressReason =
+        "The party is in the middle of a run. Ask the host to use Edit roster (or Save and Quit) to let you in.";
+
     public static HandshakeDecision Decide(
         HostIdentity host, string spirePartyVersion, string gameVersion, string gameCommit,
         string rawSeatId, string token, string address,
@@ -45,6 +49,11 @@ public static class HostHandshake
 
         if (limiter.IsBlocked(address))
             return new Deny("rate_limited", "Too many failed attempts from your address. Wait a minute and try again.");
+
+        // Mid-run nobody can join (the game would refuse with its generic "run in progress"), so refuse before
+        // any seat is created or claimed: party.json stays unchanged.
+        if (lobby.RunInProgress)
+            return new Deny("run_in_progress", RunInProgressReason);
 
         string seatId = SeatRules.Normalize(rawSeatId);
         if (!SeatRules.IsValidSeatId(seatId))

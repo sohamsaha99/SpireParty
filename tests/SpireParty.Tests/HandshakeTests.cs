@@ -16,9 +16,9 @@ public class HandshakeTests
 
     static HandshakeDecision Decide(PartyFile party, string seat, string token = "", bool open = true,
         string version = "0.1.0", string game = "v0.113.1", string commit = "d09d48e5",
-        FailedAttemptLimiter? limiter = null, string[]? connected = null, int cap = 4, ulong[]? run = null) =>
+        FailedAttemptLimiter? limiter = null, string[]? connected = null, int cap = 4, ulong[]? run = null, bool running = false) =>
         HostHandshake.Decide(Host, version, game, commit, seat, token, Addr, party,
-            new LobbyState(open, cap, connected ?? Array.Empty<string>(), run), limiter ?? new FailedAttemptLimiter());
+            new LobbyState(open, cap, connected ?? Array.Empty<string>(), run, running), limiter ?? new FailedAttemptLimiter());
 
     static string Code(HandshakeDecision d) => Assert.IsType<Deny>(d).Code;
 
@@ -165,5 +165,51 @@ public class HandshakeTests
     public void NewSeat_IsMarkedCreated()
     {
         Assert.True(Assert.IsType<Admit>(Decide(NewParty(), "ravi")).Created);
+    }
+}
+
+public class RunInProgressTests
+{
+    static readonly HostIdentity Host = new("0.1.0", "v0.113.1", "d09d48e5");
+
+    static PartyFile Party()
+    {
+        var p = new PartyFile { Name = "gate" };
+        p.Seats.Add(new Seat { SeatId = "host", PlayerId = SeatRules.HostPlayerId });
+        p.Seats.Add(new Seat { SeatId = "known", PlayerId = 7_000_002, TokenHash = SeatTokens.Hash("amber-otter-41") });
+        p.Seats.Add(new Seat { SeatId = "open", PlayerId = 7_000_003 });
+        p.NextPlayerId = 7_000_004;
+        return p;
+    }
+
+    static HandshakeDecision Decide(PartyFile party, string seat, string token, bool open, ulong[]? run) =>
+        HostHandshake.Decide(Host, "0.1.0", "v0.113.1", "d09d48e5", seat, token, "127.0.0.1", party,
+            new LobbyState(open, 8, Array.Empty<string>(), run, RunInProgress: true), new FailedAttemptLimiter());
+
+    // open = true, run = null: a party that had no saved run at Continue (today's gap: a new seat slipped through).
+    [Theory]
+    [InlineData("newcomer", "", true, false)]
+    [InlineData("known", "amber-otter-41", true, false)]
+    [InlineData("open", "", true, false)]
+    [InlineData("newcomer", "", false, true)]
+    [InlineData("known", "amber-otter-41", false, true)]
+    [InlineData("open", "", false, true)]
+    public void EveryHelloIsRefused_AndPartyJsonIsUnchanged(string seat, string token, bool open, bool savedRun)
+    {
+        var party = Party();
+        string before = party.ToJson();
+        var d = Decide(party, seat, token, open, savedRun ? new ulong[] { SeatRules.HostPlayerId, 7_000_002, 7_000_003 } : null);
+        var deny = Assert.IsType<Deny>(d);
+        Assert.Equal("run_in_progress", deny.Code);
+        Assert.Contains("Edit roster", deny.Reason);
+        Assert.Equal(before, party.ToJson());
+    }
+
+    [Fact]
+    public void VersionMismatchStillNamedFirst()
+    {
+        var d = HostHandshake.Decide(Host, "0.2.0", "v0.113.1", "d09d48e5", "known", "", "127.0.0.1", Party(),
+            new LobbyState(true, 8, Array.Empty<string>(), null, RunInProgress: true), new FailedAttemptLimiter());
+        Assert.Equal("spireparty_version", Assert.IsType<Deny>(d).Code);
     }
 }
