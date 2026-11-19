@@ -48,6 +48,7 @@ public static class ModEntry
         new MerchantLayoutAdapter(),
         new GameModesAdapter(),
         new DivergenceAdapter(),
+        new ChatInputAdapter(),
     };
 
     public static void Init()
@@ -75,6 +76,7 @@ public static class ModEntry
             UI.MainThread.Ensure();
             UI.TurnTimerView.Start();
             UI.AfkView.Start();
+            if (Adapters.IsFeatureEnabled(GameAdapters.Features_.Chat)) UI.ChatView.Start();
         }
         catch (Exception e)
         {

@@ -32,6 +32,14 @@ public sealed class ClientSession
     /// <summary>Tells the host the local player was marked AFK or came back (main thread).</summary>
     public static void ReportAfk(bool afk) => _ = Current?._control.SendAsync(new AfkReport(afk));
 
+    /// <summary>Sends a chat message to the host, which relays it to everyone (main thread). False without a session.</summary>
+    public static bool SendChat(string text)
+    {
+        if (Current == null) return false;
+        _ = Current._control.SendAsync(new ChatSend(text));
+        return true;
+    }
+
     readonly ControlClient _control;
     INetGameService? _netService;
 
@@ -79,6 +87,7 @@ public sealed class ClientSession
         SeatNames.Set(welcome.Names ?? new System.Collections.Generic.Dictionary<ulong, string>());
         result.Client.RosterReceived += roster => SeatNames.Set(roster.Names);
         result.Client.AfkListReceived += list => MainThread.Post(() => AfkRoster.Replace(list.PlayerIds));
+        result.Client.ChatReceived += chat => MainThread.Post(() => PartyChat.OnBroadcast(chat));
         PartyGameplay.TimerPaused = welcome.TimerPaused;
         result.Client.TimerPauseReceived += p => MainThread.Post(() =>
         {
@@ -192,6 +201,7 @@ public sealed class ClientSession
         PartyUnlocks.Set(null);
         PartyGameplay.Reset();
         AfkRoster.Clear();
+        PartyChat.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} client session ended");
     }

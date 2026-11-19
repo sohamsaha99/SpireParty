@@ -15,6 +15,7 @@ namespace SpireParty.Dev;
 ///   --spireparty-modifiers=a,b    with --spireparty-autopilot on a Custom party's host: tick these modifiers in the lobby
 ///   --spireparty-saveafter=N      with --spireparty-autopilot on the host: Save and Quit after N rooms of this process
 ///   --spireparty-test-diverge=N   one client only: flip its N-th checksum, to test the divergence diagnostics (task 3.12)
+///   --spireparty-chattest         once in a run: open the chat with T, type and send a line, then hide it with T (Dev/ChatTest.cs)
 ///   --spireparty-killturn=N      with --spireparty-autopilot on the host: from turn N of a fight, run the console's "kill all" (synced, but can
 ///                                 misalign checksums when it ends a fight: quick runs only, see findings → M3)
 /// </summary>
@@ -25,6 +26,9 @@ public static class DevSwitches
 
     /// <summary>--spireparty-idle: with the autopilot, play no cards and never end a combat turn (turn timer and AFK tests).</summary>
     public static bool Idle => CommandLineHelper.HasArg("spireparty-idle");
+
+    /// <summary>--spireparty-chattest: drive the party chat with simulated keys once in a run (Dev/ChatTest.cs).</summary>
+    public static bool ChatTest => CommandLineHelper.HasArg("spireparty-chattest");
 
     /// <summary>--spireparty-expect=N: an autopilot host readies only once N players are in the lobby.</summary>
     public static int ExpectPlayers =>
@@ -101,5 +105,6 @@ public static class DevSwitches
         if (Light) LightClient.Apply();
         if (Autopilot) Dev.Autopilot.Start();
         if (ShotsDir is { } dir) Screenshots.Start(dir);
+        if (ChatTest) Dev.ChatTest.Start();
     }
 }

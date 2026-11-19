@@ -50,6 +50,7 @@ All switches live in the shipped DLL, in every build, so a release can be tested
 | `--spireparty-modifiers=a,b` | Autopilot host of a Custom party: tick these modifiers (type names: `DeadlyEvents`, `Flight`, `Vintage`, `Draft`, …) in the lobby. |
 | `--spireparty-shots=<dir>` | Save a PNG of the game's viewport whenever a screen of interest opens (lobby, combat, rest site, treasure, shop, map, game over). |
 | `--spireparty-test-diverge=N` | One client only: flip its N-th checksum of a session, so the host sees a state divergence (tests the diagnostics, task 3.12). |
+| `--spireparty-chattest` | Once in a run: presses T, types a line key by key and presses Enter (through `Input.ParseInputEvent`, so the chat adapter and text box see ordinary key events), waits for the line to come back, hides it with T, sends a burst of 14 lines (one long), reopens with T, T and closes with Esc. Logs `dev chat: …`; with `--spireparty-shots` saves `chat-1-typing.png` … `chat-6-after-esc.png`. |
 | `--spireparty-killturn=N` | Autopilot host runs the console's `kill all` from turn N of a fight. **Avoid:** it can misalign checksums when it ends a fight (findings → M3). Use `-test-enemyhp` instead. |
 
 The game's own `--force-steam off` and `--clientId=<n>` let several games run on one PC without Steam, each with its own test profile (`user://default/<n>/`).
@@ -66,6 +67,7 @@ Starts a host and N clients on this PC over 127.0.0.1, all without Steam. Proces
 | `-EnemyHp x` | `--spireparty-test-enemyhp` on every process. |
 | `-Mode <mode>` / `-Modifiers a,b` | Mode of a new party; modifiers for a Custom party. |
 | `-Idle 2,3` | Those clients idle in combat. |
+| `-Chat 0,2` | `--spireparty-chattest` on the host (0) and those clients. Run the script with `powershell -Command "& tools/party-test.ps1 … -Chat 0,2"`: through `powershell -File`, `-Chat 0,2` did not reach the host (run chat1). |
 | `-PartyEnemyHealth x` / `-PartyTurnTimer s` | Write the party's own settings to party.json before hosting. |
 | `-Shots` | Screenshots from the host and c1. |
 | `-Continue` | Same party and seats again; clients rejoin with their saved tokens; older logs are kept as `<name>-r2.log`, … |
@@ -148,3 +150,5 @@ What it cannot do: target a specific ally on purpose (it picks a random one), ju
 - **Two xUnit tests that read game IL** must share the `GameIL` collection (MonoMod fails when two load at once).
 - **Processes started from a Claude session** die when the desktop app restarts: `party-test.ps1` uses WMI for that reason; a Steam-launched host uses `steam://rungameid/2868840`.
 - **Tokens are never logged.** Test seats use `--spireparty-tokenfile`.
+- **List parameters and `powershell -File`:** run chat1 passed `-Chat 0,2` through `powershell -File` and the host did not get its switch (client 2 did). Not investigated; the other list parameters (`-Idle`, `-Skip`, `-Refused`, `-Only`) may be affected too. Use `powershell -Command "& tools/party-test.ps1 …"`.
+- **Chat lines are not logged.** The log says only `chat: line from player <id> (<n> chars)`; count those lines to check delivery.

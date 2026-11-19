@@ -33,6 +33,7 @@ A co-op mod for **Slay the Spire 2** that lets up to **8 friends** play one run 
 - **Your profile stays clean.** Party runs are saved in SpireParty's own folder. They never change your normal saves, progress, unlocks, statistics, achievements or leaderboards.
 - **Game modes:** Standard (every ascension level), Custom, Daily, and Blitz and Dread where your game version has them.
 - **Party settings:** an optional turn timer in combat (30 to 90 seconds) that ends a slow player's turn, AFK auto-pass for a player who keeps timing out, an enemy health multiplier, and a max player count.
+- **Party chat.** Press T to send a message to everyone, in the lobby, on the map or in combat. Messages show for 10 seconds and are never saved.
 - **Clear errors.** A version mismatch, wrong token or full party is refused with a readable reason instead of a generic failure.
 - **Normal play is untouched.** Outside a SpireParty session the game, including its normal Steam co-op, behaves as usual.
 
@@ -239,6 +240,18 @@ Notes:
 - If an edit cannot be proven safe for the save (for example, a player still has unclaimed rewards), SpireParty refuses it and says why.
 - In Custom runs, a player cannot be added if a modifier sets players up at run start in a way a newcomer cannot follow (for example Draft, Insanity or Sealed Deck). SpireParty says so.
 - If someone's game froze or disconnected, Edit roster plus bench is also the way out.
+
+### Party chat
+
+Press **T** to chat with the party, any time during a SpireParty session: in the lobby, on the map, in combat.
+
+- **T** opens the chat: the recent messages and a text box appear at the top middle of the screen. Type, then press **Enter** to send.
+- **Esc**, **Tab** or **Enter** on an empty line closes the chat without sending. Clicking elsewhere also closes it.
+- When a message arrives, it shows for **10 seconds** and then hides. Press **T** while it shows to hide it at once; press T again to open the chat and reply.
+- While the chat is open, scroll the message list with the mouse wheel.
+- Messages are at most 200 characters. They are not saved anywhere: they disappear when the session ends.
+
+While you type, your keys go to the chat, not to the game's hotkeys. Tab still opens the map when the chat is closed.
 
 ### Party settings
 

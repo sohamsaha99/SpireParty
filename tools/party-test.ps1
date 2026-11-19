@@ -4,6 +4,7 @@
 #
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Autopilot      host + 4 clients, all play themselves
 #   -Shots saves screenshots from the host and client 1 (spikes/logs/<run>/shots-<name>/)
+#   -Chat 0,2                        host (0) and client 2 test the party chat (--spireparty-chattest)
 #   -PartyEnemyHealth x / -PartyTurnTimer s write the party's own settings; -Idle 2,3 makes clients 2 and 3 idle in combat
 #   tools/party-test.ps1 -Run smoke5 -Clients 4 -Manual 1       client 1 is played by a person (no autopilot)
 #   tools/party-test.ps1 -Run smoke5 -Continue                   same party and seats again (rejoin with saved tokens)
@@ -36,6 +37,7 @@ param(
     [string]$PartyEnemyHealth = "",
     [int]$PartyTurnTimer = -1,
     [int[]]$Idle = @(),
+    [int[]]$Chat = @(),
     [string]$Mode = "",
     [string]$Modifiers = "",
     [string]$Roster = "",
@@ -163,6 +165,7 @@ $hostLog = Get-LogPath "host"
 $hostAuto = $Autopilot -and -not $HostManual
 $hostExtra = @("--spireparty-host=$Party", "--spireparty-expect=$players")
 if ($KillTurn -gt 0) { $hostExtra += "--spireparty-killturn=$KillTurn" }
+if ($Chat -contains 0) { $hostExtra += "--spireparty-chattest" }
 if ($Mode) { $hostExtra += "--spireparty-mode=$Mode" }
 if ($Modifiers) { $hostExtra += "--spireparty-modifiers=$Modifiers" }
 if ($SaveAfter -gt 0) { $hostExtra += "--spireparty-saveafter=$SaveAfter" }
@@ -198,6 +201,7 @@ for ($n = 1; $n -le $Clients; $n++) {
     $auto = $Autopilot -and -not ($Manual -contains $n)
     $extra = @("--clientId=$(1000 + $n)", "--spireparty-join=127.0.0.1,$seat,,C$n")
     if ($Idle -contains $n) { $extra += "--spireparty-idle" }
+    if ($Chat -contains $n) { $extra += "--spireparty-chattest" }
     if ($DivergeClient -eq $n -and $DivergeAt -gt 0) { $extra += "--spireparty-test-diverge=$DivergeAt" }
     $clientPid = Start-Game $seat ($extra + @(
         "--spireparty-tokenfile=`"$tokenFile`"")) $auto

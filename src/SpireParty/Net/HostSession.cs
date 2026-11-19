@@ -292,7 +292,9 @@ public sealed class HostSession
 
     void OnClientMessage(ControlSeat seat, ControlMessage message)
     {
-        if (Current != this || message is not AfkReport report) return;
+        if (Current != this) return;
+        if (message is ChatSend chat) { PartyChat.OnClientSend(this, seat, chat); return; }
+        if (message is not AfkReport report) return;
         if (AfkRoster.Set(seat.PlayerId, report.IsAfk)) BroadcastAfk($"seat \"{seat.SeatId}\" {(report.IsAfk ? "is AFK" : "is back")}");
     }
 
@@ -347,6 +349,7 @@ public sealed class HostSession
         PartyUnlocks.Set(null);
         PartyGameplay.Reset();
         AfkRoster.Clear();
+        PartyChat.Clear();
         GameAdapters.ProfileGuardAdapter.RestoreProgressFromDisk();
         Log.Info($"{ModEntry.LogTag} host session for \"{_party.Name}\" ended");
     }

@@ -93,4 +93,7 @@ public static class Features_
 
     /// <summary>Daily, Custom, Blitz and Dread parties. Without it parties are Standard only (GameModesAdapter).</summary>
     public const string GameModes = "Game modes in parties";
+
+    /// <summary>Party chat (T). Without it there is no chat (ChatInputAdapter).</summary>
+    public const string Chat = "Party chat";
 }

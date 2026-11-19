@@ -22,5 +22,5 @@ The game build SpireParty is developed and tested against. Re-check `release_inf
 
 | Machine | OS | Build verified | SpireParty loads |
 | --- | --- | --- | --- |
-| Windows VM | Windows 11 Pro 10.0.26200 | v0.113.1 / Steam 26660232 | Yes (0.0.1, 2026-11-16; 0.1.0 release zip, 2026-11-19: 4-player autopilot party to Act 2, checksums match) |
+| Windows VM | Windows 11 Pro 10.0.26200 | v0.113.1 / Steam 26660232 | Yes (0.0.1, 2026-11-16; 0.1.0 release zip with chat, 2026-11-19: 4-player autopilot party to Act 2 with chat tests on host and c2, checksums match, 30/30 chat lines everywhere) |
 | Linux laptop | Fedora 44 (kernel 7.2.13) | v0.113.1 / Steam 26660232, `public-beta`; Linux `main_assembly_hash` 1531542858 (differs from Windows, expected) | Yes (0.0.1, 2026-11-17) |

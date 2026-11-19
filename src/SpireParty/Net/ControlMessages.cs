@@ -45,6 +45,12 @@ public sealed record Roster(IReadOnlyDictionary<ulong, string> Names) : ControlM
 /// <summary>Host → client, then the host closes the connection.</summary>
 public sealed record Refuse(string Code, string Reason) : ControlMessage;
 
+/// <summary>Client → host: a chat message from the local player. The host takes the sender from the connection.</summary>
+public sealed record ChatSend(string Text) : ControlMessage;
+
+/// <summary>Host → every client (the sender too): a chat line to show. Never stored.</summary>
+public sealed record ChatBroadcast(ulong PlayerId, string Name, string Text) : ControlMessage;
+
 public sealed record Heartbeat : ControlMessage;
 
 /// <summary>Either side, before closing on purpose (so the other side does not treat it as a drop).</summary>
@@ -83,6 +89,8 @@ public static class ControlCodec
             AfkReport a => new JsonObject { ["type"] = "afk", ["afk"] = a.IsAfk },
             AfkList l => new JsonObject { ["type"] = "afkList", ["players"] = new JsonArray(l.PlayerIds.Select(id => (JsonNode)JsonValue.Create(id)).ToArray()) },
             Refuse r => new JsonObject { ["type"] = "refuse", ["code"] = r.Code, ["reason"] = r.Reason },
+            ChatSend c => new JsonObject { ["type"] = "chatSend", ["text"] = c.Text },
+            ChatBroadcast c => new JsonObject { ["type"] = "chat", ["playerId"] = c.PlayerId, ["name"] = c.Name, ["text"] = c.Text },
             Heartbeat => new JsonObject { ["type"] = "heartbeat" },
             Bye b => new JsonObject { ["type"] = "bye", ["reason"] = b.Reason },
             _ => throw new ArgumentException($"unknown message {message.GetType().Name}"),
@@ -129,6 +137,8 @@ public static class ControlCodec
                 "afk" => new AfkReport(o["afk"] is JsonValue av && av.TryGetValue(out bool ab) && ab),
                 "afkList" => new AfkList(o["players"] is JsonArray pa ? pa.Select(n => n!.GetValue<ulong>()).ToList() : new List<ulong>()),
                 "refuse" => new Refuse(Str("code"), Str("reason")),
+                "chatSend" => new ChatSend(Str("text")),
+                "chat" => new ChatBroadcast(o["playerId"] is JsonValue cp && cp.TryGetValue(out ulong cpid) ? cpid : 0, Str("name"), Str("text")),
                 "heartbeat" => new Heartbeat(),
                 "bye" => new Bye(Str("reason")),
                 var other => throw new InvalidDataException($"unknown message type \"{other}\""),

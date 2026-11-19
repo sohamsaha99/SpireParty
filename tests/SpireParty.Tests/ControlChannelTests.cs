@@ -26,6 +26,8 @@ public class ControlCodecTests
             new Refuse("wrong_token", "Wrong token for seat \"ravi\"."),
             new Heartbeat(),
             new Bye("left"),
+            new ChatSend("hello [b]party[/b] ✨"),
+            new ChatBroadcast(7000002, "Ravi", "hello"),
         };
         foreach (var m in all) Assert.Equal(m, await RoundTrip(m));
     }
@@ -161,6 +163,30 @@ public class ControlServerTests
         Assert.IsType<Welcome>(await ControlCodec.ReadAsync(raw.GetStream(), CancellationToken.None));
 
         Assert.Equal("timeout", await lost.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task Chat_ClientSendsToHost_HostBroadcastReachesClient()
+    {
+        int port = FreePort();
+        using var server = StartServer(port, AdmitRavi);
+        var atHost = new TaskCompletionSource<(ControlSeat, ControlMessage)>();
+        server.MessageReceived += (seat, m) => atHost.TrySetResult((seat, m));
+
+        var result = await ControlClient.ConnectAsync("127.0.0.1", port, Hello("good-token-11"));
+        var atClient = new TaskCompletionSource<ChatBroadcast>();
+        result.Client!.ChatReceived += c => atClient.TrySetResult(c);
+        await WaitUntil(() => server.ConnectedSeatIds.Count == 1);
+
+        await result.Client.SendAsync(new ChatSend("gg"));
+        var (seat, message) = await atHost.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("ravi", seat.SeatId);
+        Assert.Equal("gg", Assert.IsType<ChatSend>(message).Text);
+
+        server.Broadcast(new ChatBroadcast(seat.PlayerId, "Ravi", "gg"));
+        var echoed = await atClient.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new ChatBroadcast(7000002, "Ravi", "gg"), echoed);
+        result.Client.Dispose();
     }
 
     [Fact]

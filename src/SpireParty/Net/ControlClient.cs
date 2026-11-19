@@ -31,6 +31,9 @@ public sealed class ControlClient : IDisposable
     /// <summary>Raised on a background thread when the host sends the list of AFK seats.</summary>
     public event Action<AfkList>? AfkListReceived;
 
+    /// <summary>Raised on a background thread when the host relays a chat line.</summary>
+    public event Action<ChatBroadcast>? ChatReceived;
+
     /// <summary>Sends a message to the host (any thread); a lost connection is reported through HostLost.</summary>
     public Task SendAsync(ControlMessage message) => Send(message);
 
@@ -111,6 +114,11 @@ public sealed class ControlClient : IDisposable
                 if (message is TimerPause pause)
                 {
                     try { TimerPauseReceived?.Invoke(pause); }
+                    catch (Exception e) when (e is not OperationCanceledException) { /* a handler bug must not drop the channel */ }
+                }
+                if (message is ChatBroadcast chat)
+                {
+                    try { ChatReceived?.Invoke(chat); }
                     catch (Exception e) when (e is not OperationCanceledException) { /* a handler bug must not drop the channel */ }
                 }
                 if (message is Roster roster)

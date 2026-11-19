@@ -34,6 +34,7 @@ v1 ships the smallest version of each goal that a group of friends can actually 
 | Browser seats | None: every player runs the game | Video streaming of a seat instance to a browser (deferred 2026-11-19); scene-sync renderer; phone UI |
 | Roster | Join, leave, bench and restore at safe points via save, quit, reload | Live join during combat or mid-event |
 | Identity | Party-chosen seat IDs; one roster per run | Accounts, passwords, cross-run player profiles |
+| Chat | Text chat for the party (T), shown for 10 seconds, memory only | Saved chat logs; voice; private messages |
 | Host platform | Windows and Linux hosts and clients, one build | macOS (code kept portable, untested) |
 | Balance | Verify enemy scaling is sane at 8; one tunable multiplier | Full rebalance of multiplayer cards and events |
 
@@ -134,6 +135,24 @@ AFK handling is deliberately simple (decided 2026-11-18 by the user): an absent 
 **Outside combat.** Map votes, shared events, treasure, rest sites and rewards wait for every player, with no timeout in the game. SpireParty adds nothing there: the party sees who is missing and the host uses step 3.
 
 **Deferred.** A waiting-on list, nudge, vote to kick, AFK seats answering votes or skipping rewards, and a vote timer. Letting the host or another native player play an AFK native seat's cards needs the host to submit that player's actions. DirectConnectIP shows it can be done, through its [offline player takeover](https://github.com/TasteSteak/sts2-DirectConnectIP-Mods/blob/master/README.md), but it touches action sync, so it waits until after v1.
+
+## Party chat
+
+Any player can send a short text message to the whole party during a SpireParty session (lobby, map, combat), through SpireParty's own control channel; nothing is stored (user request, 2026-11-19).
+
+**Transport.** A client sends `chatSend` to the host on the control channel (TCP, game port). The host cleans the text, takes the sender from the connection (never from the message), names it from the roster, and relays a `chat` message to every connected seat, the sender included. The game's own network messages are not used, so chat cannot affect game sync, and no game action is sent (hard rule 6).
+
+**Rules.** Text: control characters and line breaks become spaces, at most 200 characters, empty messages are dropped. The host allows each sender a burst of 5 messages, then one per second; extra messages are dropped and logged. Lines live in memory only (the newest 100), and are forgotten when the session ends. The game log records only `chat: line from player <id> (<n> chars)`, never the text.
+
+**Screen.** A panel at the top middle, under the AFK banners, on its own CanvasLayer:
+
+| State | Shown | Keys |
+| --- | --- | --- |
+| Hidden (default) | Nothing | **T** opens the chat |
+| Showing (a message arrived) | The history, newest at the bottom, for 10 seconds; a new message restarts the 10 seconds. The panel ignores the mouse | **T** hides it at once |
+| Open | The history (scrolls with the mouse wheel past about 7 lines) and a text box | **Enter** sends and closes; **Esc**, **Tab** or Enter on an empty line closes; clicking away closes |
+
+**Key choice.** T, not Tab: Tab is the game's map hotkey (user decision, 2026-11-19). T reaches the game through `NInputManager._UnhandledKeyInput`, where SpireParty catches it (`ChatInputAdapter`) only during a session. While the text box has focus it takes every key, so the game's hotkeys never fire while typing (findings → Party chat).
 
 ## Saves, progression and game modes
 
@@ -383,5 +402,7 @@ Build in six milestones, starting with a research spike on the riskiest unknown,
 | M2 · Party saves and roster editor | Per-party saves, backups, bench, restore, add, open seats and token reset, display names, the unlock setting; fail-closed scan (the roster check needed no patch). Plan: `docs/MILESTONE-2.md` | Bench, restore and add survive a full act |
 | M3 · Eight players | Cap, layouts, turn timer and combat AFK auto-pass; enemy health formula charted; multiplier; game modes (Daily, Custom, Blitz, Dread) in party runs; automated test harness. Plan: `docs/MILESTONE-3.md` | An 8-player act with no desync, combat readable |
 | M4 · Browser seats | Deferred past the first full release (user, 2026-11-19); see "Browser seats (deferred)" | — |
-| M5 · Release | Startup self-check tested with a forced failure; release zip (`tools/package.ps1`) and GitHub releases tagged `v0.x.y`; README with install steps for Windows, macOS and Linux; MIT LICENSE; third-party notices; Workshop item optional | All success criteria met |
+| M5 · Release | Party chat (added 2026-11-19, user); startup self-check tested with a forced failure; release zip (`tools/package.ps1`) and GitHub releases tagged `v0.x.y`; README with install steps for Windows, macOS and Linux; MIT LICENSE; third-party notices; Workshop item optional | All success criteria met |
 
+
+**Releases.** v0.1.0 (2026-11-19): M0 to M3, party chat, README, MIT license, release zip. Still open in M5: the startup self-check tested with a forced failure, and the success-criteria run (8 players to the Act 3 boss with remote players and a mid-run roster change).
