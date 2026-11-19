@@ -27,6 +27,8 @@ public sealed class MachineConfig
     public int BackupsKept { get; set; } = 20;
     /// <summary>Divergence diagnostics bundles kept under mods/SpireParty/diagnostics (newest first).</summary>
     public int DiagnosticsKept { get; set; } = 10;
+    /// <summary>Deleted parties kept under mods/SpireParty/deleted (newest first); older ones are removed for good.</summary>
+    public int DeletedPartiesKept { get; set; } = 10;
     public List<RecentHost> RecentHosts { get; set; } = new();
 
     public static MachineConfig Parse(string? json, out List<string> warnings)
@@ -40,6 +42,7 @@ public sealed class MachineConfig
             BrowserSeats = j.Bool("browserSeats", true),
             BackupsKept = j.Int("backupsKept", 20, 1, 100),
             DiagnosticsKept = j.Int("diagnosticsKept", 10, 1, 100),
+            DeletedPartiesKept = j.Int("deletedPartiesKept", 10, 1, 100),
         };
         if (c.ListenAddress.Length == 0) c.ListenAddress = "auto";
         foreach (var h in j.Objects("recentHosts"))
@@ -61,6 +64,10 @@ public sealed class MachineConfig
         RecentHosts.Insert(0, host);
         if (RecentHosts.Count > MaxRecentHosts) RecentHosts.RemoveRange(MaxRecentHosts, RecentHosts.Count - MaxRecentHosts);
     }
+
+    /// <summary>Removes this entry from the Join menu's recent list. Returns false if it was not there.</summary>
+    public bool Forget(RecentHost host) =>
+        RecentHosts.RemoveAll(h => h.Address == host.Address && h.Port == host.Port && h.SeatId == host.SeatId) > 0;
 
     public const string FileName = "config.json";
 
@@ -89,6 +96,7 @@ public sealed class MachineConfig
             ["browserSeats"] = BrowserSeats,
             ["backupsKept"] = BackupsKept,
             ["diagnosticsKept"] = DiagnosticsKept,
+            ["deletedPartiesKept"] = DeletedPartiesKept,
             ["recentHosts"] = new JsonArray(RecentHosts.Select(h => (JsonNode)new JsonObject
             {
                 ["address"] = h.Address,

@@ -165,6 +165,8 @@ mods/SpireParty/parties/thursday-crew/
   history/     records of this party's finished runs
 ```
 
+**Deleting a party** (party screen → Delete, after a confirmation) moves its whole folder to `mods/SpireParty/deleted/<party>-<yyyyMMdd-HHmmss>/`. Only the newest `deletedPartiesKept` (default 10) are kept; each delete removes older ones for good. A deleted party can be brought back by moving its folder into `parties/` by hand. The Join form's recent list has a Forget button per entry; it edits only `config.json`.
+
 **Not tied to Steam.** The party belongs to whoever holds the folder: copy it to a friend's PC and they can host the same run. Because it sits outside the game's profile folders, do not count on Steam Cloud to sync it; SpireParty's own backups are the safety net.
 
 **Progression stays out too.** Ending a run writes more than the run save: run history, statistics, ascension progress and unlocks. During a party run, SpireParty sends run history to the party's `history/` folder and skips every write to the profile's progress, achievements and daily leaderboard. Party runs never advance or alter your normal progress.
@@ -346,6 +348,7 @@ Every choice a group might want differently is a setting with a simple default: 
 | Seat video | config.json | 1280x720, JPEG quality 70, at most 15 frames per second | Any |
 | Backups kept per party | config.json | 20 | 1 to 100 |
 | Divergence diagnostics kept | config.json | 10 (M3, task 3.12) | 1 to 100 |
+| Deleted parties kept | config.json (`deletedPartiesKept`) | 10 (user, 2026-11-18) | 1 to 100 |
 
 **Flexibility rules.**
 

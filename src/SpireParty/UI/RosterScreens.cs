@@ -28,6 +28,40 @@ public static class RosterScreens
     static string CharacterName(string id) =>
         id.Length == 0 ? "" : NewPlayer.FindCharacter(id)?.Title.GetFormattedText() ?? id;
 
+    // ---- delete a party
+
+    /// <summary>
+    /// Moves the party's folder to mods/SpireParty/deleted/ (fail closed: nothing is erased at once); only the newest
+    /// <c>deletedPartiesKept</c> deleted parties are kept. The game's profiles are never touched.
+    /// </summary>
+    static void ConfirmDelete(string folder, string name, NSubmenuStack stack)
+    {
+        string dataDir = PlatformInfo.SpirePartyDataDir;
+        int keep = MachineConfig.Load(dataDir, out _).DeletedPartiesKept;
+        bool running = PartyRunSave.Exists(new PartyStore(dataDir).RunSavePath(folder));
+        Form.Confirm($"Delete party \"{name}\"?",
+            (running ? "Its run in progress, roster, backups and history go with it. " : "Its roster, backups and history go with it. ") +
+            $"The party leaves the Host list and its folder moves to mods/SpireParty/deleted/. The {keep} most recently deleted " +
+            "parties are kept there, so you can move one back into parties/ by hand; older ones are removed for good.",
+            "Delete",
+            () =>
+            {
+                try
+                {
+                    var store = new PartyStore(dataDir);
+                    string moved = store.Delete(folder, DateTime.Now, keep);
+                    foreach (var w in store.Warnings) Log.Warn($"{ModEntry.LogTag} {w}");
+                    Log.Info($"{ModEntry.LogTag} deleted party \"{folder}\" -> {moved}");
+                    Popups.Message("Party deleted", $"\"{name}\" was deleted. Its folder is kept in mods/SpireParty/deleted/ for now.");
+                }
+                catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+                {
+                    Log.Warn($"{ModEntry.LogTag} delete party \"{folder}\" failed: {e.Message}");
+                    OpenParty(folder, stack, $"Could not delete the party: {e.Message}", error: true);
+                }
+            });
+    }
+
     // ---- party screen
 
     public static void OpenParty(string folder, NSubmenuStack stack, string? status = null, bool error = false)
@@ -65,6 +99,7 @@ public static class RosterScreens
             ("Roster", () => { form.Close(); OpenRoster(folder, stack); }),
             ("Settings", () => { form.Close(); OpenSettings(folder, stack); }),
             ("Backups", () => { form.Close(); OpenBackups(folder, stack); }),
+            ("Delete", () => { form.Close(); ConfirmDelete(folder, party.Name, stack); }),
             ("Back", form.Close));
         if (status != null) form.SetStatus(status, error);
         form.Show();

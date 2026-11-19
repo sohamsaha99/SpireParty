@@ -96,15 +96,28 @@ public static class PartyMenu
 
         var form = new Form("SpireParty Join");
         Godot.LineEdit? address = null, seat = null, name = null;
-        if (config.RecentHosts.Count > 1)
+        if (config.RecentHosts.Count > 0)
         {
             form.AddText("Recent:", 18);
-            form.AddChoiceList(config.RecentHosts.Select(h => ($"{h.SeatId} @ {h.Address}:{h.Port}", (Action)(() =>
+            foreach (var h in config.RecentHosts)
             {
-                address!.Text = h.Port == config.GamePort ? h.Address : $"{h.Address}:{h.Port}";
-                seat!.Text = h.SeatId;
-                name!.Text = h.Name;
-            }))));
+                form.AddRow($"{h.SeatId} @ {h.Address}:{h.Port}",
+                    ("Use", () =>
+                    {
+                        address!.Text = h.Port == config.GamePort ? h.Address : $"{h.Address}:{h.Port}";
+                        seat!.Text = h.SeatId;
+                        name!.Text = h.Name;
+                    }),
+                    // Forget only removes the entry from this list (config.json); the party and the seat are the host's.
+                    ("Forget", () =>
+                    {
+                        var fresh = MachineConfig.Load(PlatformInfo.SpirePartyDataDir, out _);
+                        if (fresh.Forget(h)) fresh.Save(PlatformInfo.SpirePartyDataDir);
+                        Log.Info($"{ModEntry.LogTag} forgot recent host {h.SeatId} @ {h.Address}:{h.Port}");
+                        form.Close();
+                        OpenJoin(submenu);
+                    }));
+            }
         }
         address = form.AddField("Host address (Tailscale or Meshnet IP or name):",
             last == null ? "" : last.Port == config.GamePort ? last.Address : $"{last.Address}:{last.Port}", "100.x.y.z");

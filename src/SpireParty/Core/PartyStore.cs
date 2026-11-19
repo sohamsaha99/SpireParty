@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace SpireParty.Core;
 
@@ -22,6 +23,53 @@ public sealed class PartyStore
     public PartyStore(string spirePartyDataDir)
     {
         _partiesDir = Path.Combine(spirePartyDataDir, "parties");
+        DeletedDir = Path.Combine(spirePartyDataDir, "deleted");
+    }
+
+    /// <summary>Deleted parties, <c>deleted/&lt;folder&gt;-&lt;yyyyMMdd-HHmmss&gt;</c>, newest kept (config <c>deletedPartiesKept</c>).</summary>
+    public string DeletedDir { get; }
+
+    static readonly Regex DeletedName = new(@"-(\d{8}-\d{6})(?:-(\d+))?$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Deletes a party the safe way: its whole folder (party.json, run save, backups, benched players, history) moves
+    /// to <see cref="DeletedDir"/>, then only the newest <paramref name="keep"/> deleted parties are kept. Returns the
+    /// folder it moved to. Throws if the party does not exist. Never touches the game's profiles.
+    /// </summary>
+    public string Delete(string folder, DateTime now, int keep)
+    {
+        string source = PartyDir(folder);
+        if (!Directory.Exists(source)) throw new InvalidOperationException($"There is no party called \"{folder}\".");
+        Directory.CreateDirectory(DeletedDir);
+        string stamp = now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        string target = Path.Combine(DeletedDir, $"{folder}-{stamp}");
+        for (int n = 2; Directory.Exists(target); n++) target = Path.Combine(DeletedDir, $"{folder}-{stamp}-{n}");
+        Directory.Move(source, target);
+        PruneDeleted(keep);
+        return target;
+    }
+
+    /// <summary>The deleted parties, newest first (by the time in the folder name).</summary>
+    public IReadOnlyList<string> ListDeleted()
+    {
+        if (!Directory.Exists(DeletedDir)) return Array.Empty<string>();
+        return Directory.GetDirectories(DeletedDir)
+            .Select(d => (Path: d, Match: DeletedName.Match(Path.GetFileName(d))))
+            .Where(x => x.Match.Success)
+            .OrderByDescending(x => x.Match.Groups[1].Value, StringComparer.Ordinal)
+            .ThenByDescending(x => x.Match.Groups[2].Success ? int.Parse(x.Match.Groups[2].Value) : 1)
+            .Select(x => x.Path)
+            .ToList();
+    }
+
+    /// <summary>Removes all but the newest <paramref name="keep"/> (at least 1) deleted parties. Other files are left alone.</summary>
+    public void PruneDeleted(int keep)
+    {
+        foreach (var old in ListDeleted().Skip(Math.Max(1, keep)))
+        {
+            try { Directory.Delete(old, recursive: true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Warnings.Add($"could not remove {old}: {e.Message}"); }
+        }
     }
 
     public string PartyDir(string folder) => Path.Combine(_partiesDir, folder);
