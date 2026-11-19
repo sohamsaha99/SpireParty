@@ -66,6 +66,8 @@ Starts a host and N clients on this PC over 127.0.0.1, all without Steam. Proces
 
 **Waiting.** Watch the host log in a background loop rather than sleeping: count `Moving to coordinate` (one per room), stop on `act 1 coord` (Act 2 reached) or on any `diverg` line. Each Continue adds one `hosting party "<name>"` line.
 
+**Test profiles.** A missing test profile (`user://default/<id>/`) is seeded from `default/1000`. If none exists (profiles wiped), the game's first launch writes the profile with mods off and SpireParty is skipped; the next `party-test.ps1` start turns `mod_settings.mods_enabled` on in that test profile only (never under `steam/`), so start it again.
+
 **Resources.** A light client uses about 730 MB. 8 playing need about 6 GB of RAM; on the 12 GB VM close other desktop apps first. Ask whoever is at the PC not to click autopilot windows.
 
 ## Scenarios (tools/scenarios/)
@@ -79,6 +81,28 @@ Starts a host and N clients on this PC over 127.0.0.1, all without Steam. Proces
 | `midrun.ps1` | A new seat trying to join while the run is in progress is refused with SpireParty's reason; party.json gains no seat (task 3.13). |
 | `diverge.ps1` | A forced divergence saves a diagnostics bundle on the host and the client, token hashes stripped, and the popup gets the report line (task 3.12). |
 | `act1-8.ps1 [-Shots]` | 8 players through Act 1 into Act 2; a ninth client is refused as "party is full". |
+
+## After a game update: tools/check-update.ps1
+
+Slay the Spire 2 is in early access and updates often; every update can move a method an adapter patches. **Run `tools/check-update.ps1` after every Steam update of the game, and before playing a party** on a build it has not checked yet (Steam updates silently: if unsure, run it; on an unchanged build it takes about a minute). Game closed first. Before a release, run it with `-Full`.
+
+```powershell
+tools/check-update.ps1              # steps 1-4: a few minutes the first time on a build (decompile), then about a minute
+tools/check-update.ps1 -Full        # also every feature scenario (about 45 minutes)
+tools/check-update.ps1 -Full -Gate  # also act1-8
+```
+
+One line per step (`PASS`, `REVIEW` = look at it, `FAIL`, `SKIP`), a summary, then what to record. Exit code 1 on any FAIL. Full report and logs: `spikes/logs/check-update-*.txt`.
+
+| Step | What it does |
+| --- | --- |
+| 1 build | Reads `release_info.json`, `sts2.runtimeconfig.json`, the `sts2.dll` SHA-256 and size, and Steam's build id and branch; compares them with `docs/game-version.md`. |
+| 2 diff | Decompiles `sts2.dll` with `ilspycmd` (pinned 9.1.0.7988, installed if missing) into `decompiled/<version>-<commit>/` of the main checkout (gitignored; never commit it), then diffs, member by member, only the game types each adapter in `GameAdapters/` imports and names, against the previous decompiled build (`-Previous <dir>` to choose; the first one is `decompiled/sts2/`). Lists added, removed and changed members per adapter; `*` marks a member the adapter names (likely affected). Godot's generated glue is ignored. |
+| 3 build, test | `dotnet build -c Debug` (compile errors are API breaks) and `dotnet test` (includes the tests that read game IL). |
+| 4 launch | `tools/deploy.ps1`, one light host (`party-test.ps1 -Run upd -Clients 0`), checks the startup lines (every adapter applied, none "not applied", player cap), stops the game. |
+| 5 scenario | With `-Full`: `tools/scenarios/all.ps1` (`-Gate` adds act1-8). |
+
+**What to do with the result.** All PASS on an unchanged build: nothing to record. On a new build: fix any FAIL first (an adapter that fails its self-check leaves its features off and vanilla working, but the party then misses them); read every `REVIEW` member against its adapter; run `-Full`; then copy the rows the script prints into `docs/game-version.md` and add a `## Game update <version>` section to `docs/findings.md` for each affected adapter (what changed, whether SpireParty changed, fallback taken). Linux (`deploy.sh`) is checked by hand at the next cross-OS gate.
 
 ## tools/check-logs.ps1
 

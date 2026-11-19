@@ -80,6 +80,18 @@ foreach ($id in @(1) + (1..$Clients | ForEach-Object { 1000 + $_ })) {
         Copy-Item $seed $settings
         Write-Host "Seeded test profile default/$id"
     }
+    # No seed (test profiles wiped): the game wrote this profile's settings on a first launch with mods off.
+    # Turn on mod_settings.mods_enabled in this test profile only (findings -> M2, mods prompt per profile);
+    # an empty mod_list means every mod is enabled. Text edit, so the game's own formatting is kept.
+    if (Test-Path $settings) {
+        $text = [IO.File]::ReadAllText($settings)
+        $fixed = $text -replace '"mod_settings":\s*null', '"mod_settings": { "mods_enabled": true, "mod_list": [] }' `
+                       -replace '"mods_enabled":\s*false', '"mods_enabled": true'
+        if ($fixed -ne $text) {
+            [IO.File]::WriteAllText($settings, $fixed, (New-Object Text.UTF8Encoding $false))
+            Write-Host "Enabled mods in test profile default/$id"
+        }
+    }
 }
 
 
